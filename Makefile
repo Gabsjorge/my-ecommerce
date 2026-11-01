@@ -38,12 +38,12 @@ seed: ## Run the seed manually in dev
 test: test-backend test-e2e ## Full suite (Docker only)
 
 test-backend: ## Vitest (unit + integration) against an ephemeral Postgres
-	$(COMPOSE_TEST) build
+	$(COMPOSE_TEST) --profile tools build
 	$(COMPOSE_TEST) run --rm backend-test; rc=$$?; $(COMPOSE_TEST) down -v; exit $$rc
 
 test-e2e: ## Playwright (api + ui) against the full test stack
 	mkdir -p e2e/playwright-report e2e/test-results
-	$(COMPOSE_TEST) build
+	$(COMPOSE_TEST) --profile tools build
 	$(COMPOSE_TEST) run --rm e2e; rc=$$?; $(COMPOSE_TEST) down -v; exit $$rc
 
 test-env-up: ## Start the debug test environment (frontend on TEST_LOCAL_FRONTEND_PORT)
