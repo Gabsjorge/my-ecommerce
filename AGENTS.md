@@ -10,18 +10,18 @@ Fora de escopo: autenticação, pagamento real, notificações, upload de imagem
 
 ## Stack
 
-| Parte | Tecnologia |
-|---|---|
-| Backend | Node 22, Express 5, TypeScript (`strict`) |
-| Banco | PostgreSQL 16 (`postgres:16-alpine`) |
-| ORM | Drizzle ORM + `drizzle-kit` (migrations `.sql` commitadas em `backend/drizzle/`) |
-| Frontend | JS puro com ES modules, JSDoc + `// @ts-check`, sem framework e sem build |
-| Servidor do frontend | nginx (container), com proxy de `/api/` para o backend |
-| Testes de backend | Vitest (+ supertest) |
-| Testes E2E | Playwright Test (versão exata, igual à da imagem Docker) |
-| Validação de env | Zod |
-| Qualidade | ESLint (flat config), Prettier, `tsc --noEmit`, Husky + lint-staged |
-| Orquestração | Docker Compose + Makefile |
+| Parte                | Tecnologia                                                                       |
+| -------------------- | -------------------------------------------------------------------------------- |
+| Backend              | Node 22, Express 5, TypeScript (`strict`)                                        |
+| Banco                | PostgreSQL 16 (`postgres:16-alpine`)                                             |
+| ORM                  | Drizzle ORM + `drizzle-kit` (migrations `.sql` commitadas em `backend/drizzle/`) |
+| Frontend             | JS puro com ES modules, JSDoc + `// @ts-check`, sem framework e sem build        |
+| Servidor do frontend | nginx (container), com proxy de `/api/` para o backend                           |
+| Testes de backend    | Vitest (+ supertest)                                                             |
+| Testes E2E           | Playwright Test (versão exata, igual à da imagem Docker)                         |
+| Validação de env     | Zod                                                                              |
+| Qualidade            | ESLint (flat config), Prettier, `tsc --noEmit`, Husky + lint-staged              |
+| Orquestração         | Docker Compose + Makefile                                                        |
 
 ## Estrutura
 
@@ -35,6 +35,7 @@ docker-compose*.yml, Makefile, .env.example, .env.test na raiz
 ```
 
 Onde cada código vive:
+
 - Rotas, controllers, services e repositories do backend ficam em `backend/src/modules/<modulo>/`.
 - Acesso ao banco só no repository. Schema em `backend/src/db/schema.ts`.
 - Config lida só em `backend/src/config/env.ts`. Nunca leia `process.env` em outro lugar.
@@ -62,22 +63,22 @@ Onde cada código vive:
 
 ## Decisões arquiteturais (não questione nem contorne)
 
-| Decisão | Motivo |
-|---|---|
-| Node + Express + TypeScript | Experiência do time, linguagem única no repositório e toolchain de testes compartilhado |
-| PostgreSQL | Container de banco real, transações e `FOR UPDATE` para a estratégia de estoque do Step 2 |
-| Drizzle ORM | Próximo do SQL, sem geração de código nem engine binário, `FOR UPDATE` nativo |
-| Backend por módulo (não por camada) | Carrinho, pedidos e cupons vão crescer; cada módulo mantém suas camadas juntas |
-| Preço em centavos (inteiro) | Evita erro de ponto flutuante nos descontos do Step 2 |
-| ID serial | Auth está fora de escopo, seeds e asserts ficam previsíveis |
-| Frontend em JS puro, sem build | Alinhado a "sem framework"; tipagem por JSDoc + `checkJs` |
-| nginx com proxy de `/api/` | Mesma origem (sem CORS) e E2E por uma URL só |
-| Vitest no backend, Playwright em `e2e/` | O E2E é caixa-preta e prova o sistema inteiro, sem importar código interno |
-| E2E em container no `make test` | Resultado reproduzível, o único requisito é o Docker |
-| Ambiente de teste com banco efêmero e projeto Compose próprio | Testes determinísticos, nunca tocam nos dados de dev, sem resultados flaky |
-| Serviço one-shot `migrate` | Separa bootstrap do banco da aplicação e falha de forma visível |
-| `.env` em vez de Docker Secrets | Projeto educacional, sem deploy |
-| Seed idempotente, único para dev e teste | Os asserts do E2E batem com o que se vê no navegador |
+| Decisão                                                       | Motivo                                                                                    |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Node + Express + TypeScript                                   | Experiência do time, linguagem única no repositório e toolchain de testes compartilhado   |
+| PostgreSQL                                                    | Container de banco real, transações e `FOR UPDATE` para a estratégia de estoque do Step 2 |
+| Drizzle ORM                                                   | Próximo do SQL, sem geração de código nem engine binário, `FOR UPDATE` nativo             |
+| Backend por módulo (não por camada)                           | Carrinho, pedidos e cupons vão crescer; cada módulo mantém suas camadas juntas            |
+| Preço em centavos (inteiro)                                   | Evita erro de ponto flutuante nos descontos do Step 2                                     |
+| ID serial                                                     | Auth está fora de escopo, seeds e asserts ficam previsíveis                               |
+| Frontend em JS puro, sem build                                | Alinhado a "sem framework"; tipagem por JSDoc + `checkJs`                                 |
+| nginx com proxy de `/api/`                                    | Mesma origem (sem CORS) e E2E por uma URL só                                              |
+| Vitest no backend, Playwright em `e2e/`                       | O E2E é caixa-preta e prova o sistema inteiro, sem importar código interno                |
+| E2E em container no `make test`                               | Resultado reproduzível, o único requisito é o Docker                                      |
+| Ambiente de teste com banco efêmero e projeto Compose próprio | Testes determinísticos, nunca tocam nos dados de dev, sem resultados flaky                |
+| Serviço one-shot `migrate`                                    | Separa bootstrap do banco da aplicação e falha de forma visível                           |
+| `.env` em vez de Docker Secrets                               | Projeto educacional, sem deploy                                                           |
+| Seed idempotente, único para dev e teste                      | Os asserts do E2E batem com o que se vê no navegador                                      |
 
 ## O que fazer
 
