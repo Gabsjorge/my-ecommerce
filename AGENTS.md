@@ -51,7 +51,7 @@ Onde cada código vive:
 - **Banco:** colunas em `snake_case`, propriedades TS em `camelCase`.
 - **Testes:** `*.test.ts` (unitário), `*.integration.test.ts` (integração), `*.api.spec.ts` e `*.ui.spec.ts` (E2E).
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `chore:`, `test:`, `docs:`, `refactor:`). **Branches:** `feat|fix|chore/<nome>`.
-- **Idioma:** identificadores e commits em inglês; UI, seed e documentação em português (pt-BR).
+- **Idioma:** identificadores, comentários de código, commits e o `README.md` em inglês; UI, seed e demais documentação (`docs/`, `AGENTS.md`) em português (pt-BR).
 
 ### Contrato da API (não mude sem pedido explícito)
 
