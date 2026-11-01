@@ -1,0 +1,32 @@
+services:
+  db:
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - '${DB_PORT}:5432'
+
+  migrate:
+    build: { context: ./backend, target: dev }
+    command: ['sh', '-c', 'npm run db:migrate && npm run db:seed']
+    environment:
+      NODE_ENV: development
+
+  backend:
+    build: { context: ./backend, target: dev }
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/drizzle:/app/drizzle
+    ports:
+      - '${BACKEND_PORT}:3000'
+
+  frontend:
+    volumes:
+      - ./frontend/src:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - '${FRONTEND_PORT}:8080'
+
+volumes:
+  db_data:
