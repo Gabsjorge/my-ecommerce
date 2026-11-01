@@ -25,6 +25,7 @@ test.describe('product list page', () => {
     await page.goto('/');
     await expect(page.getByTestId('product-item')).toHaveCount(6);
     await expect(page.getByTestId('out-of-stock-badge')).toHaveCount(1);
+    await expect(page.getByTestId('out-of-stock-badge')).toHaveText('Sem estoque');
     const outOfStock = page.getByTestId('product-item').filter({
       has: page.getByTestId('out-of-stock-badge'),
     });
