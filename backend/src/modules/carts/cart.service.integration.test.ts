@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { carts, products } from '../../db/schema';
+import { carts, coupons, orders, products } from '../../db/schema';
 import { createTestApp } from '../../test-support/app';
 import { createCleanup } from '../../test-support/cleanup';
 import { createCart, createCoupon, createProduct } from '../../test-support/factories';
@@ -235,5 +235,125 @@ describe('CartService transitions (integration)', () => {
     const [stock] = await db.select().from(products).where(eq(products.id, product.id));
     expect(stock.stock).toBe(5);
     await expect(service.checkout(cart.id)).rejects.toMatchObject({ code: 'INVALID_CART_STATE' });
+  });
+});
+
+describe('CartService.confirm (integration)', () => {
+  async function checkoutCart(productId: number, quantity: number, couponCode?: string) {
+    const cart = await createCart(db, cleanup);
+    await service.addItem(cart.id, productId, quantity);
+    if (couponCode) await service.applyCoupon(cart.id, couponCode);
+    await service.checkout(cart.id);
+    return cart;
+  }
+
+  async function stockOf(productId: number) {
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    return row.stock;
+  }
+
+  async function couponUsed(couponId: number) {
+    const [row] = await db.select().from(coupons).where(eq(coupons.id, couponId));
+    return row.usedAt !== null;
+  }
+
+  it('creates the order, decrements stock and consumes the coupon', async () => {
+    const product = await createProduct(db, cleanup, { priceCents: 1000, stock: 5 });
+    const coupon = await createCoupon(db, cleanup, { value: 10 });
+    const cart = await checkoutCart(product.id, 2, coupon.code);
+
+    const { order, cart: view } = await service.confirm(cart.id);
+
+    expect(order).toMatchObject({
+      status: 'created',
+      subtotalCents: 2000,
+      discountCents: 200,
+      totalCents: 1800,
+      couponCode: coupon.code,
+    });
+    expect(view.status).toBe('order_created');
+    expect(await stockOf(product.id)).toBe(3);
+    expect(await couponUsed(coupon.id)).toBe(true);
+    await expect(service.confirm(cart.id)).rejects.toMatchObject({ code: 'INVALID_CART_STATE' });
+  });
+
+  it('rolls everything back when a failure is injected after the writes (RN-021)', async () => {
+    const product = await createProduct(db, cleanup, { stock: 5 });
+    const coupon = await createCoupon(db, cleanup);
+    const cart = await checkoutCart(product.id, 2, coupon.code);
+    const real = new DrizzleUnitOfWork(db);
+    const failing = new CartService({
+      carts: new CartRepository(db),
+      clock: () => now,
+      inactivityTimeoutMs: TIMEOUT_MS,
+      unitOfWork: {
+        run: (work) =>
+          real.run((repos) =>
+            work({
+              ...repos,
+              // Keeps the prototype so the repository still works, but fails after the decrement.
+              coupons: Object.assign(Object.create(repos.coupons), {
+                markUsed: () => Promise.reject(new Error('injected failure')),
+              }),
+            }),
+          ),
+      },
+    });
+
+    await expect(failing.confirm(cart.id)).rejects.toThrow('injected failure');
+
+    expect(await stockOf(product.id)).toBe(5);
+    expect(await couponUsed(coupon.id)).toBe(false);
+    expect(await db.select().from(orders).where(eq(orders.cartId, cart.id))).toHaveLength(0);
+    expect((await service.getCart(cart.id)).status).toBe('in_checkout');
+  });
+
+  it('lets only one of two concurrent confirmations take the last item (RN-008)', async () => {
+    const product = await createProduct(db, cleanup, { stock: 1 });
+    const a = await checkoutCart(product.id, 1);
+    const b = await checkoutCart(product.id, 1);
+
+    const results = await Promise.allSettled([service.confirm(a.id), service.confirm(b.id)]);
+
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(rejected.reason).toMatchObject({ code: 'INSUFFICIENT_STOCK' });
+    expect(await stockOf(product.id)).toBe(0);
+  });
+
+  it('gives a shared coupon to the first confirmation only (RN-013)', async () => {
+    const product = await createProduct(db, cleanup, { stock: 10 });
+    const coupon = await createCoupon(db, cleanup);
+    const a = await checkoutCart(product.id, 1, coupon.code);
+    const b = await checkoutCart(product.id, 1, coupon.code);
+
+    await service.confirm(a.id);
+    await expect(service.confirm(b.id)).rejects.toMatchObject({ code: 'COUPON_ALREADY_USED' });
+
+    expect((await service.getCart(b.id)).status).toBe('in_checkout');
+    expect(await stockOf(product.id)).toBe(9);
+  });
+
+  it('fails when the coupon expires between applying and confirming', async () => {
+    const product = await createProduct(db, cleanup, { stock: 10 });
+    const coupon = await createCoupon(db, cleanup, { expiresAt: new Date(START.getTime() + 1000) });
+    const cart = await checkoutCart(product.id, 1, coupon.code);
+    now = new Date(START.getTime() + 2000);
+
+    await expect(service.confirm(cart.id)).rejects.toMatchObject({ code: 'COUPON_EXPIRED' });
+    expect((await service.getCart(cart.id)).status).toBe('in_checkout');
+  });
+
+  it('reports the shortage when the stock dropped after adding to the cart', async () => {
+    const product = await createProduct(db, cleanup, { stock: 5 });
+    const cart = await checkoutCart(product.id, 3);
+    await db.update(products).set({ stock: 1 }).where(eq(products.id, product.id));
+
+    await expect(service.confirm(cart.id)).rejects.toMatchObject({
+      code: 'INSUFFICIENT_STOCK',
+      details: { items: [{ productId: product.id, requested: 3, available: 1 }] },
+    });
+    expect((await service.getCart(cart.id)).status).toBe('in_checkout');
+    expect(await stockOf(product.id)).toBe(1);
   });
 });

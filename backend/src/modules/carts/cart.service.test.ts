@@ -549,3 +549,160 @@ describe('CartService transitions', () => {
     expect(repos.carts.touch).not.toHaveBeenCalled();
   });
 });
+
+describe('CartService.confirm', () => {
+  const stored = (overrides: Record<string, unknown> = {}) => ({
+    id: 70,
+    cartId: 1,
+    status: 'created',
+    subtotalCents: 0,
+    discountCents: 0,
+    totalCents: 0,
+    couponId: null,
+    items: [],
+    createdAt: NOW,
+    ...overrides,
+  });
+
+  function checkoutScenario(
+    opts: { couponId?: number | null; items?: ReturnType<typeof line>[] } = {},
+  ) {
+    const items = opts.items ?? [line(2, 1000)];
+    const ctx = build();
+    ctx.repos.carts.lockById.mockResolvedValue(
+      makeCart({ status: 'in_checkout', couponId: opts.couponId ?? null }),
+    );
+    ctx.repos.carts.findDetails.mockResolvedValue(
+      details({ cart: makeCart({ status: 'order_created' }), items }),
+    );
+    ctx.repos.products.lockByIds.mockResolvedValue(items.map((i) => product({ id: i.productId })));
+    ctx.repos.orders.create.mockImplementation(async (order: Record<string, unknown>) =>
+      stored(order),
+    );
+    return ctx;
+  }
+
+  it('creates the order, decrements stock and moves the cart to order_created (RF-011)', async () => {
+    const { repos, service } = checkoutScenario();
+
+    const result = await service.confirm(1);
+
+    expect(repos.orders.create).toHaveBeenCalledWith(
+      { cartId: 1, subtotalCents: 2000, discountCents: 0, totalCents: 2000, couponId: null },
+      [{ productId: 5, quantity: 2, unitPriceCents: 1000 }],
+    );
+    expect(repos.products.decrementStock).toHaveBeenCalledWith(5, 2);
+    expect(repos.carts.setStatus).toHaveBeenCalledWith(1, 'order_created');
+    expect(repos.coupons.markUsed).not.toHaveBeenCalled();
+    expect(result.order).toMatchObject({
+      id: 70,
+      cartId: 1,
+      status: 'created',
+      couponCode: null,
+      items: [{ productId: 5, name: 'P', quantity: 2, unitPriceCents: 1000 }],
+    });
+    expect(result.cart.status).toBe('order_created');
+  });
+
+  it('applies the coupon discount and marks it used only on success (RN-013)', async () => {
+    const { repos, service } = checkoutScenario({ couponId: 9 });
+    repos.coupons.lockById.mockResolvedValue(coupon());
+
+    const result = await service.confirm(1);
+
+    expect(repos.orders.create).toHaveBeenCalledWith(
+      { cartId: 1, subtotalCents: 2000, discountCents: 200, totalCents: 1800, couponId: 9 },
+      expect.any(Array),
+    );
+    expect(repos.coupons.markUsed).toHaveBeenCalledWith(9, NOW);
+    expect(result.order.couponCode).toBe('DESC10');
+  });
+
+  it.each([
+    ['COUPON_NOT_FOUND', null],
+    ['COUPON_EXPIRED', coupon({ expiresAt: new Date('2020-01-01T00:00:00Z') })],
+    ['COUPON_ALREADY_USED', coupon({ usedAt: new Date('2020-01-01T00:00:00Z') })],
+    ['COUPON_MIN_ORDER_NOT_MET', coupon({ minOrderCents: 999999 })],
+  ])('revalidates the coupon and fails with %s before any write (RN-011)', async (code, found) => {
+    const { repos, service } = checkoutScenario({ couponId: 9 });
+    repos.coupons.lockById.mockResolvedValue(found);
+
+    await expect(service.confirm(1)).rejects.toMatchObject({ code });
+    expect(repos.products.lockByIds).not.toHaveBeenCalled();
+    expect(repos.orders.create).not.toHaveBeenCalled();
+    expect(repos.products.decrementStock).not.toHaveBeenCalled();
+    expect(repos.coupons.markUsed).not.toHaveBeenCalled();
+    expect(repos.carts.setStatus).not.toHaveBeenCalled();
+  });
+
+  it('checks the coupon before the stock when both fail', async () => {
+    const { repos, service } = checkoutScenario({ couponId: 9 });
+    repos.coupons.lockById.mockResolvedValue(coupon({ usedAt: new Date() }));
+    repos.products.lockByIds.mockResolvedValue([product({ stock: 0 })]);
+    await expect(service.confirm(1)).rejects.toMatchObject({ code: 'COUPON_ALREADY_USED' });
+  });
+
+  it('lists every short item in details and changes nothing (RN-009)', async () => {
+    const items = [
+      { ...line(3), productId: 5, name: 'A' },
+      { ...line(1), productId: 6, name: 'B' },
+      { ...line(2), productId: 7, name: 'C' },
+    ];
+    const { repos, service } = checkoutScenario({ items });
+    repos.products.lockByIds.mockResolvedValue([
+      product({ id: 5, stock: 1 }),
+      product({ id: 6, stock: 10 }),
+      product({ id: 7, stock: 0 }),
+    ]);
+
+    await expect(service.confirm(1)).rejects.toMatchObject({
+      code: 'INSUFFICIENT_STOCK',
+      status: 409,
+      details: {
+        items: [
+          { productId: 5, requested: 3, available: 1 },
+          { productId: 7, requested: 2, available: 0 },
+        ],
+      },
+    });
+    expect(repos.orders.create).not.toHaveBeenCalled();
+    expect(repos.products.decrementStock).not.toHaveBeenCalled();
+    expect(repos.coupons.markUsed).not.toHaveBeenCalled();
+    expect(repos.carts.setStatus).not.toHaveBeenCalled();
+  });
+
+  it('locks the products ordered by the repository with the cart item ids', async () => {
+    const items = [
+      { ...line(1), productId: 9 },
+      { ...line(1), productId: 4 },
+    ];
+    const { repos, service } = checkoutScenario({ items });
+    await service.confirm(1);
+    expect(repos.products.lockByIds).toHaveBeenCalledWith([9, 4]);
+  });
+
+  it('aborts when a guarded decrement affects no row', async () => {
+    const { repos, service } = checkoutScenario();
+    repos.products.decrementStock.mockResolvedValue(false);
+    await expect(service.confirm(1)).rejects.toMatchObject({ code: 'INSUFFICIENT_STOCK' });
+    expect(repos.carts.setStatus).not.toHaveBeenCalled();
+  });
+
+  it('aborts when the coupon was consumed concurrently', async () => {
+    const { repos, service } = checkoutScenario({ couponId: 9 });
+    repos.coupons.lockById.mockResolvedValue(coupon());
+    repos.coupons.markUsed.mockResolvedValue(false);
+    await expect(service.confirm(1)).rejects.toMatchObject({ code: 'COUPON_ALREADY_USED' });
+    expect(repos.carts.setStatus).not.toHaveBeenCalled();
+  });
+
+  it.each(['empty', 'with_items', 'order_created', 'abandoned'] as const)(
+    'is refused in state %s',
+    async (status) => {
+      const { repos, service } = build();
+      repos.carts.lockById.mockResolvedValue(makeCart({ status }));
+      await expect(service.confirm(1)).rejects.toMatchObject({ code: 'INVALID_CART_STATE' });
+      expect(repos.orders.create).not.toHaveBeenCalled();
+    },
+  );
+});

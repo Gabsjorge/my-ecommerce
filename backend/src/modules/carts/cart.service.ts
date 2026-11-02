@@ -1,6 +1,6 @@
 import { computeTotals, subtotalCents } from './cart.pricing';
-import { CouponNotAppliedError } from '../coupons/coupon.errors';
-import { validateOnApply } from '../coupons/coupon.rules';
+import { CouponAlreadyUsedError, CouponNotAppliedError } from '../coupons/coupon.errors';
+import { revalidateOnConfirm, validateOnApply } from '../coupons/coupon.rules';
 import { ProductNotFoundError } from '../products/product.errors';
 import {
   CartItemNotFoundError,
@@ -11,7 +11,14 @@ import {
 import { assertAllowed, nextState } from './cart.state';
 import type { Operation } from './cart.state';
 import { isExpired } from './cart.timeout';
-import type { CartDetails, CartRecord, CartRepositoryPort, CartView, Clock } from './cart.types';
+import type {
+  CartDetails,
+  CartRecord,
+  CartRepositoryPort,
+  CartView,
+  Clock,
+  ConfirmResult,
+} from './cart.types';
 import type { TxRepositories, UnitOfWork } from './cart.unit-of-work';
 
 export interface CartServiceDeps {
@@ -180,6 +187,78 @@ export class CartService {
       const { to } = nextState(operation, locked.cart.status);
       await locked.repos.carts.setStatus(locked.cart.id, to);
       return this.finishWrite(locked);
+    });
+  }
+
+  // RF-011 / RN-021: one transaction; any thrown error rolls everything back, so nothing is half-applied.
+  // Lock order is fixed: cart (withCartLock), coupon, then products ordered by id (section 5.3).
+  confirm(cartId: number): Promise<ConfirmResult> {
+    return this.withCartLock(cartId, 'CONFIRM', async (locked) => {
+      const { repos, cart, now } = locked;
+      const { to } = nextState('CONFIRM', cart.status);
+      const items = (await repos.carts.findDetails(cart.id))?.items ?? [];
+      const subtotal = subtotalCents(items);
+
+      // The coupon is revalidated first, then stock (RN-011, FRD order).
+      const coupon = cart.couponId === null ? null : await repos.coupons.lockById(cart.couponId);
+      if (cart.couponId !== null) revalidateOnConfirm({ coupon, subtotalCents: subtotal, now });
+      const totals = computeTotals(items, coupon);
+
+      const locks = await repos.products.lockByIds(items.map((item) => item.productId));
+      const stockById = new Map(locks.map((p) => [p.id, p.stock]));
+      const shortages = items
+        .map((item) => ({
+          productId: item.productId,
+          requested: item.quantity,
+          available: stockById.get(item.productId) ?? 0,
+        }))
+        .filter((entry) => entry.available < entry.requested);
+      if (shortages.length > 0) throw new InsufficientStockError(shortages);
+
+      const order = await repos.orders.create(
+        { cartId: cart.id, ...totals, couponId: coupon?.id ?? null },
+        items.map(({ productId, quantity, unitPriceCents }) => ({
+          productId,
+          quantity,
+          unitPriceCents,
+        })),
+      );
+      for (const item of items) {
+        // Guarded update: a failure here means the lock invariant was broken; abort everything.
+        if (!(await repos.products.decrementStock(item.productId, item.quantity))) {
+          throw new InsufficientStockError([
+            {
+              productId: item.productId,
+              requested: item.quantity,
+              available: stockById.get(item.productId) ?? 0,
+            },
+          ]);
+        }
+      }
+      if (coupon && !(await repos.coupons.markUsed(coupon.id, now))) {
+        throw new CouponAlreadyUsedError();
+      }
+      await repos.carts.setStatus(cart.id, to);
+
+      return {
+        order: {
+          id: order.id,
+          cartId: order.cartId,
+          status: order.status,
+          items: items.map(({ productId, name, quantity, unitPriceCents }) => ({
+            productId,
+            name,
+            quantity,
+            unitPriceCents,
+          })),
+          subtotalCents: order.subtotalCents,
+          discountCents: order.discountCents,
+          totalCents: order.totalCents,
+          couponCode: coupon?.code ?? null,
+          createdAt: order.createdAt,
+        },
+        cart: await this.finishWrite(locked),
+      };
     });
   }
 

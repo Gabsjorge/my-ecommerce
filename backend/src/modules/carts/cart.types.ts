@@ -78,3 +78,20 @@ export interface CartView {
   discountCents: number;
   totalCents: number;
 }
+
+export interface OrderView {
+  id: number;
+  cartId: number;
+  status: string;
+  items: { productId: number; name: string; quantity: number; unitPriceCents: number }[];
+  subtotalCents: number;
+  discountCents: number;
+  totalCents: number;
+  couponCode: string | null;
+  createdAt: Date;
+}
+
+export interface ConfirmResult {
+  order: OrderView;
+  cart: CartView;
+}
