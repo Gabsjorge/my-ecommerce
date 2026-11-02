@@ -17,7 +17,7 @@ Novos, em `backend/src/modules/carts/`: `cart.types.ts`, `cart.errors.ts`, `cart
 - Unitários: 211 passando em `npm --prefix backend run test:unit` (inclui a matriz completa 10 operações × 5 estados, `REMOVE_ITEM` com e sem itens restantes, estados finais, limite exato do timeout, serialização do erro pelo `errorHandler`).
 - `make lint` (ESLint, Prettier, `tsc --noEmit` nos 3 pacotes): passou.
 - Integração e E2E de endpoint/frontend: **não aplicáveis ainda**, pois não existem service, rotas `/api/carts` nem UI do carrinho. Serão exercitados em T-015..T-022 e T-029..T-032.
-- `make test` (Docker): **pendente, a executar pelo desenvolvedor**.
+- `make test` (Docker), executado pelo desenvolvedor: backend 16 arquivos / 234 testes (unitários + integração) passando; E2E 11 testes (API e UI da listagem) passando, sem regressão.
 
 ## Gaps na especificação
 
