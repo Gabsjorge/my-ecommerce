@@ -2,4 +2,4 @@
 services:
   frontend:
     ports:
-      - '${TEST_LOCAL_FRONTEND_PORT}:8080'
+      - '127.0.0.1:${TEST_LOCAL_FRONTEND_PORT}:8080'

@@ -15,7 +15,7 @@ export interface AppDeps {
 // Manual composition root (no DI framework). Does not call listen.
 export function createApp({ db }: AppDeps): express.Express {
   const app = express();
-  app.use(express.json());
+  app.disable('x-powered-by');
 
   app.use('/health', createHealthRoutes(new HealthController(() => pingDb(db))));
 

@@ -19,6 +19,13 @@ describe('GET /api/products (integration)', () => {
   });
 });
 
+describe('response headers (integration)', () => {
+  it('does not advertise the framework via X-Powered-By', async () => {
+    const res = await request(app).get('/api/products');
+    expect(res.headers['x-powered-by']).toBeUndefined();
+  });
+});
+
 describe('unknown routes (integration)', () => {
   it('returns 404 in the standard error format', async () => {
     const res = await request(app).get('/rota-inexistente');
