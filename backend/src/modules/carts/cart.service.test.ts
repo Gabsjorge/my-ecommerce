@@ -489,3 +489,63 @@ describe('coupon kept below the minimum (RN-016)', () => {
     expect(view).toMatchObject({ subtotalCents: 500, discountCents: 75, totalCents: 425 });
   });
 });
+
+describe('CartService transitions', () => {
+  it.each([
+    ['checkout', 'with_items', 'in_checkout'],
+    ['edit', 'in_checkout', 'with_items'],
+    ['abandon', 'with_items', 'abandoned'],
+    ['abandon', 'in_checkout', 'abandoned'],
+  ] as const)('%s moves %s to %s and registers the write', async (method, from, to) => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: from, couponId: 4 }));
+    repos.carts.findDetails.mockResolvedValue(details());
+
+    await service[method](1);
+
+    expect(repos.carts.setStatus).toHaveBeenCalledWith(1, to);
+    expect(repos.carts.touch).toHaveBeenCalledWith(1, NOW);
+    // The coupon is kept on edit and not consumed on abandon.
+    expect(repos.carts.setCoupon).not.toHaveBeenCalled();
+    expect(repos.coupons.markUsed).not.toHaveBeenCalled();
+  });
+
+  it('checkout does not look at or change stock (RN-007)', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'with_items' }));
+    repos.carts.findDetails.mockResolvedValue(details());
+
+    await service.checkout(1);
+
+    expect(repos.products.findById).not.toHaveBeenCalled();
+    expect(repos.products.lockByIds).not.toHaveBeenCalled();
+    expect(repos.products.decrementStock).not.toHaveBeenCalled();
+  });
+
+  it('an empty cart cannot be abandoned and stays empty (RN-019)', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'empty' }));
+    await expect(service.abandon(1)).rejects.toMatchObject({ code: 'INVALID_CART_STATE' });
+    expect(repos.carts.setStatus).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['checkout', 'empty'],
+    ['checkout', 'in_checkout'],
+    ['edit', 'with_items'],
+    ['edit', 'empty'],
+    ['checkout', 'order_created'],
+    ['edit', 'abandoned'],
+    ['abandon', 'order_created'],
+    ['abandon', 'abandoned'],
+  ] as const)('%s is refused in %s without changes', async (method, status) => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status }));
+    await expect(service[method](1)).rejects.toMatchObject({
+      code: 'INVALID_CART_STATE',
+      status: 409,
+    });
+    expect(repos.carts.setStatus).not.toHaveBeenCalled();
+    expect(repos.carts.touch).not.toHaveBeenCalled();
+  });
+});

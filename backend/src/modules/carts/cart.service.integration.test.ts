@@ -214,3 +214,26 @@ describe('CartService coupons (integration)', () => {
     expect(view).toMatchObject({ subtotalCents: 1000, discountCents: 500, totalCents: 500 });
   });
 });
+
+describe('CartService transitions (integration)', () => {
+  it('runs checkout, edit and abandon, keeping the coupon and the stock', async () => {
+    const product = await createProduct(db, cleanup, { stock: 5 });
+    const coupon = await createCoupon(db, cleanup);
+    const cart = await createCart(db, cleanup);
+    await service.addItem(cart.id, product.id, 2);
+    await service.applyCoupon(cart.id, coupon.code);
+
+    expect((await service.checkout(cart.id)).status).toBe('in_checkout');
+    const edited = await service.edit(cart.id);
+    expect(edited.status).toBe('with_items');
+    expect(edited.coupon?.code).toBe(coupon.code);
+
+    await service.checkout(cart.id);
+    const abandoned = await service.abandon(cart.id);
+    expect(abandoned.status).toBe('abandoned');
+
+    const [stock] = await db.select().from(products).where(eq(products.id, product.id));
+    expect(stock.stock).toBe(5);
+    await expect(service.checkout(cart.id)).rejects.toMatchObject({ code: 'INVALID_CART_STATE' });
+  });
+});

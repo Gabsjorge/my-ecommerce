@@ -157,6 +157,32 @@ export class CartService {
     });
   }
 
+  // RF-008: items become locked; stock is neither checked nor reserved (RN-007).
+  checkout(cartId: number): Promise<CartView> {
+    return this.transition(cartId, 'CHECKOUT');
+  }
+
+  // RF-009: the applied coupon is kept.
+  edit(cartId: number): Promise<CartView> {
+    return this.transition(cartId, 'EDIT');
+  }
+
+  // RF-010: only with_items and in_checkout can be abandoned (RN-019); coupon and stock are untouched.
+  abandon(cartId: number): Promise<CartView> {
+    return this.transition(cartId, 'ABANDON');
+  }
+
+  private transition(
+    cartId: number,
+    operation: 'CHECKOUT' | 'EDIT' | 'ABANDON',
+  ): Promise<CartView> {
+    return this.withCartLock(cartId, operation, async (locked) => {
+      const { to } = nextState(operation, locked.cart.status);
+      await locked.repos.carts.setStatus(locked.cart.id, to);
+      return this.finishWrite(locked);
+    });
+  }
+
   // Runs a write under the cart row lock (RN-021, section 5.3). Order of checks: cart exists,
   // timeout, then whatever `work` validates (state and domain rules).
   protected async withCartLock<T>(
