@@ -8,7 +8,12 @@ const sample: Product[] = [
 ];
 
 function makeRepo(products: Product[]): ProductRepositoryPort {
-  return { findAll: vi.fn().mockResolvedValue(products) };
+  return {
+    findAll: vi.fn().mockResolvedValue(products),
+    findById: vi.fn(),
+    lockByIds: vi.fn(),
+    decrementStock: vi.fn(),
+  };
 }
 
 describe('ProductService.list', () => {
