@@ -78,4 +78,9 @@ Migrations: edit `backend/src/db/schema.ts`, run `npm run db:generate` in `backe
 
 ## Known `npm audit` warnings
 
-The backend's **production** dependencies have no known vulnerabilities (`npm audit --omit=dev`). The remaining warnings are in development tooling only (`vitest`, `tinypool`, `esbuild`), which never reaches the production image. Fixing them requires Vitest 4 (a breaking change) and is left for a future update.
+Production dependencies have no known vulnerabilities in any package (`npm audit --omit=dev` reports 0). The remaining warnings are in development tooling only and never reach the production image:
+
+- root: `minimatch` via ESLint / typescript-eslint (moderate);
+- backend: `vitest` / `@vitest/mocker` / `tinypool` (the latter flagged critical, but only exploitable if an attacker controls the test runner's worker options) and `esbuild` via `drizzle-kit` (moderate).
+
+Do not run `npm audit fix --force`: it proposes downgrades. The proper fix is upgrading Vitest to 5.x and `drizzle-kit`, a breaking change left for a future update.

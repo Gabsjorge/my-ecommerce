@@ -82,7 +82,7 @@ Onde cada código vive:
 
 ## O que fazer
 
-- Rode `make check` antes de dar uma tarefa como concluída. Mudanças que afetam fluxo de ponta a ponta exigem `make test` passando.
+- Rode `make check` antes de dar uma tarefa como concluída. Mudanças que afetam fluxo de ponta a ponta exigem `make test` passando. Quando o agente não puder rodar `make test`, o desenvolvedor o executa e confirma.
 - Escreva ou atualize testes junto com o código. Uma mudança de contrato exige atualizar o E2E de endpoint.
 - Mantenha `.env.example` em dia ao criar variáveis. Valide-as em `config/env.ts`.
 - Gere migrations com `npm run db:generate` (no backend) e commite os `.sql`. Nunca edite uma migration já aplicada.
@@ -137,3 +137,12 @@ make test-env-down    # derruba
 ```
 
 Primeira vez no host: `npx playwright install chromium` dentro de `e2e/`.
+
+### Limitações do ambiente de agentes
+
+Por causa do proxy corporativo, agentes de IA **não** conseguem rodar comandos Docker que dependem de rede
+(`make up`, `make test`, `make test-env-up`, `docker compose ...`) nem `npm audit`. O agente deve:
+
+- rodar só o que funciona offline: `make lint` e `npm --prefix backend run test:unit` (com Node 22: `nvm use`);
+- para o restante, informar o comando exato e pedir ao desenvolvedor que o execute e envie a saída completa;
+- não declarar a tarefa como concluída enquanto `make test` não tiver sido confirmado pelo desenvolvedor.
