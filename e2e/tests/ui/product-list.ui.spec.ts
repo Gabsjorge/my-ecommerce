@@ -22,16 +22,20 @@ test.describe('product list page', () => {
   });
 
   test('shows the out-of-stock badge only for products with stock 0', async ({ page }) => {
+    // The expected set comes from the API: cart tests that sell the last unit of a product
+    // (checkout.api.spec.ts) legitimately add more out-of-stock products.
+    const res = await page.request.get('/api/products');
+    const { data } = (await res.json()) as { data: ApiProduct[] };
+    const expectedNames = data.filter((p) => p.stock === 0).map((p) => p.name);
+    expect(expectedNames).toContain('Caderno Universitário 200 folhas');
+
     await page.goto('/');
     await expect(page.getByTestId('product-item')).toHaveCount(10);
-    await expect(page.getByTestId('out-of-stock-badge')).toHaveCount(1);
-    await expect(page.getByTestId('out-of-stock-badge')).toHaveText('Sem estoque');
-    const outOfStock = page.getByTestId('product-item').filter({
-      has: page.getByTestId('out-of-stock-badge'),
-    });
-    await expect(outOfStock.getByTestId('product-name')).toHaveText(
-      'Caderno Universitário 200 folhas',
-    );
+    const badges = page.getByTestId('out-of-stock-badge');
+    await expect(badges).toHaveCount(expectedNames.length);
+    for (const badge of await badges.all()) await expect(badge).toHaveText('Sem estoque');
+    const outOfStock = page.getByTestId('product-item').filter({ has: badges });
+    await expect(outOfStock.getByTestId('product-name')).toHaveText(expectedNames);
   });
 
   test('displayed data matches GET /api/products', async ({ page }) => {
