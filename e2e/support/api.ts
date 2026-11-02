@@ -9,6 +9,7 @@ export const PRODUCT_NAMES = {
   limitedStock: 'Mochila Escolar Compacta (Estoque Limitado)',
   outOfStock: 'Caderno Universitário 200 folhas',
   regular: 'Camiseta Básica Algodão',
+  uiLastUnit: 'Agenda Anual Última Unidade (UI)',
 } as const;
 
 export const COUPON_CODES = {
@@ -22,6 +23,8 @@ export const COUPON_CODES = {
   consumable: 'CONFIRMA10',
   consumableFixed: 'ZERA-FIXO',
   dispute: 'DISPUTA10',
+  uiConsumable: 'UI-CONFIRMA10',
+  uiConsumableFixed: 'UI-ZERA-FIXO',
 } as const;
 
 export type CartStatus = 'empty' | 'with_items' | 'in_checkout' | 'order_created' | 'abandoned';
