@@ -4,7 +4,7 @@ Instruções para agentes de IA neste repositório. A especificação completa e
 
 ## Projeto
 
-E-commerce simplificado, com fins educacionais: listagem de produtos, carrinho (máquina de estados), cupons e pedidos (máquina de estados). O scaffolding implementa só a **Listagem de Produtos** de ponta a ponta (tela → API → PostgreSQL), com testes E2E. Carrinho, cupons e pedidos virão em Steps seguintes.
+E-commerce simplificado, com fins educacionais: listagem de produtos, carrinho (máquina de estados), cupons e pedidos. Estão implementados de ponta a ponta (tela → API → PostgreSQL), com testes de unidade, integração e E2E: a **Listagem de Produtos** e o **Carrinho** (itens, cupom, checkout, abandono por inatividade e criação atômica do Pedido). O ciclo de vida do Pedido após a criação (Confirmado, Enviado, Entregue, Cancelado) virá em Step seguinte. Especificação do carrinho: [docs/cart/frd-cart.md](docs/cart/frd-cart.md) e [docs/cart/blueprint-cart.md](docs/cart/blueprint-cart.md).
 
 Fora de escopo: autenticação, pagamento real, notificações, upload de imagem, busca full-text, CI/CD.
 
@@ -18,6 +18,7 @@ Fora de escopo: autenticação, pagamento real, notificações, upload de imagem
 | Frontend             | JS puro com ES modules, JSDoc + `// @ts-check`, sem framework e sem build        |
 | Servidor do frontend | nginx (container), com proxy de `/api/` para o backend                           |
 | Testes de backend    | Vitest (+ supertest)                                                             |
+| Testes de frontend   | `node:test` (runner nativo do Node 22), em `frontend/src/**/*.test.js`           |
 | Testes E2E           | Playwright Test (versão exata, igual à da imagem Docker)                         |
 | Validação de env     | Zod                                                                              |
 | Qualidade            | ESLint (flat config), Prettier, `tsc --noEmit`, Husky + lint-staged              |
@@ -27,8 +28,10 @@ Fora de escopo: autenticação, pagamento real, notificações, upload de imagem
 
 ```
 backend/    API. src/modules/<modulo>/{controller,service,repository,routes,types}
+            módulos: products, carts, coupons, orders, health
             src/db (client, schema, migrate, seed), src/config, src/shared
 frontend/   src/views (DOM), src/domain (lógica de frontend), src/api (fetch)
+            testes unitários `*.test.js` ao lado do código (não entram na imagem do nginx)
 e2e/        tests/api/*.api.spec.ts e tests/ui/*.ui.spec.ts (Playwright, caixa-preta)
 docs/       Requisitos, arquitetura e especificação
 docker-compose*.yml, Makefile, .env.example, .env.test na raiz
@@ -57,28 +60,32 @@ Onde cada código vive:
 
 - Rotas de negócio em `/api`; `/health` fora do prefixo (200 se o banco responde, 503 caso contrário).
 - Listagem: `{ "data": [...], "total": n }`, sem paginação, ordenada por `id`.
-- Erros: `{ "error": { "code": "NOT_FOUND", "message": "..." } }` com o status HTTP correto. Erros de negócio estendem `AppError`. Erros inesperados retornam `500 INTERNAL_ERROR` sem detalhes.
+- Recurso único (carrinho, pedido): objeto simples, sem envelope `data`. Rotas do carrinho em `/api/carts`.
+- Erros: `{ "error": { "code": "NOT_FOUND", "message": "...", "details"? } }` com o status HTTP correto; `details` é opcional (ex.: `INSUFFICIENT_STOCK` na confirmação lista `details.items`). Erros de negócio estendem `AppError`. Erros inesperados retornam `500 INTERNAL_ERROR` sem detalhes.
+- Status por código: `VALIDATION_ERROR` 400 (413 para corpo grande); `CART_NOT_FOUND`, `PRODUCT_NOT_FOUND`, `CART_ITEM_NOT_FOUND`, `COUPON_NOT_FOUND` 404; `INVALID_CART_STATE`, `INSUFFICIENT_STOCK`, `COUPON_ALREADY_APPLIED`, `COUPON_NOT_APPLIED` 409; `COUPON_EXPIRED`, `COUPON_ALREADY_USED`, `COUPON_MIN_ORDER_NOT_MET` 422; `INTERNAL_ERROR` 500.
 - Campos em `camelCase`. **Preço sempre em centavos, inteiro** (`priceCents`). O frontend formata na camada `domain/`.
 - `id` é inteiro serial.
 
 ## Decisões arquiteturais (não questione nem contorne)
 
-| Decisão                                                       | Motivo                                                                                    |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Node + Express + TypeScript                                   | Experiência do time, linguagem única no repositório e toolchain de testes compartilhado   |
-| PostgreSQL                                                    | Container de banco real, transações e `FOR UPDATE` para a estratégia de estoque do Step 2 |
-| Drizzle ORM                                                   | Próximo do SQL, sem geração de código nem engine binário, `FOR UPDATE` nativo             |
-| Backend por módulo (não por camada)                           | Carrinho, pedidos e cupons vão crescer; cada módulo mantém suas camadas juntas            |
-| Preço em centavos (inteiro)                                   | Evita erro de ponto flutuante nos descontos do Step 2                                     |
-| ID serial                                                     | Auth está fora de escopo, seeds e asserts ficam previsíveis                               |
-| Frontend em JS puro, sem build                                | Alinhado a "sem framework"; tipagem por JSDoc + `checkJs`                                 |
-| nginx com proxy de `/api/`                                    | Mesma origem (sem CORS) e E2E por uma URL só                                              |
-| Vitest no backend, Playwright em `e2e/`                       | O E2E é caixa-preta e prova o sistema inteiro, sem importar código interno                |
-| E2E em container no `make test`                               | Resultado reproduzível, o único requisito é o Docker                                      |
-| Ambiente de teste com banco efêmero e projeto Compose próprio | Testes determinísticos, nunca tocam nos dados de dev, sem resultados flaky                |
-| Serviço one-shot `migrate`                                    | Separa bootstrap do banco da aplicação e falha de forma visível                           |
-| `.env` em vez de Docker Secrets                               | Projeto educacional, sem deploy                                                           |
-| Seed idempotente, único para dev e teste                      | Os asserts do E2E batem com o que se vê no navegador                                      |
+| Decisão                                                       | Motivo                                                                                         |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Node + Express + TypeScript                                   | Experiência do time, linguagem única no repositório e toolchain de testes compartilhado        |
+| PostgreSQL                                                    | Container de banco real, transações e `FOR UPDATE` para a estratégia de estoque do Step 2      |
+| Drizzle ORM                                                   | Próximo do SQL, sem geração de código nem engine binário, `FOR UPDATE` nativo                  |
+| Backend por módulo (não por camada)                           | Carrinho, pedidos e cupons vão crescer; cada módulo mantém suas camadas juntas                 |
+| Preço em centavos (inteiro)                                   | Evita erro de ponto flutuante nos descontos do Step 2                                          |
+| ID serial                                                     | Auth está fora de escopo, seeds e asserts ficam previsíveis                                    |
+| Frontend em JS puro, sem build                                | Alinhado a "sem framework"; tipagem por JSDoc + `checkJs`                                      |
+| nginx com proxy de `/api/`                                    | Mesma origem (sem CORS) e E2E por uma URL só                                                   |
+| Vitest no backend, Playwright em `e2e/`                       | O E2E é caixa-preta e prova o sistema inteiro, sem importar código interno                     |
+| E2E em container no `make test`                               | Resultado reproduzível, o único requisito é o Docker                                           |
+| Ambiente de teste com banco efêmero e projeto Compose próprio | Testes determinísticos, nunca tocam nos dados de dev, sem resultados flaky                     |
+| Serviço one-shot `migrate`                                    | Separa bootstrap do banco da aplicação e falha de forma visível                                |
+| `.env` em vez de Docker Secrets                               | Projeto educacional, sem deploy                                                                |
+| Seed idempotente por linha, único para dev e teste            | Os asserts do E2E batem com o que se vê no navegador                                           |
+| Estoque: decremento pessimista (`FOR UPDATE`) na confirmação  | Resolve a decisão do Step 2: duas confirmações simultâneas não vendem o mesmo estoque (RN-008) |
+| Testes de frontend com `node:test`                            | Sem dependência extra nem build; roda em container (`make test-frontend`)                      |
 
 ## O que fazer
 
@@ -98,7 +105,7 @@ Onde cada código vive:
 - Não commite `.env`. Só `.env.example` e `.env.test` (sem segredos reais).
 - Não aponte testes E2E para o ambiente de dev. Eles usam o ambiente de teste.
 - Não esconda testes instáveis com `retries`; corrija a causa.
-- Não implemente carrinho, cupons, pedidos nem paginação neste scaffolding. Os Steps seguintes cuidam disso.
+- Não implemente paginação nem o ciclo de vida do Pedido após a criação (Confirmado, Enviado, Entregue, Cancelado). Os Steps seguintes cuidam disso.
 - Não altere a ordem de subida (`db` → `migrate` → `backend` → `frontend`) nem o nome dos projetos Compose (`ecommerce`, `ecommerce-test`, `ecommerce-test-local`).
 
 ## Como rodar localmente
@@ -119,8 +126,9 @@ make seed        # roda o seed manualmente
 Qualidade e testes:
 
 ```bash
-make test             # test-backend + test-e2e em containers (só Docker)
+make test             # test-backend + test-frontend + test-e2e em containers (só Docker)
 make test-backend     # Vitest (unitário + integração) contra Postgres efêmero
+make test-frontend    # node:test do frontend em container
 make test-e2e         # Playwright (endpoint + frontend) contra a stack completa
 make lint             # ESLint + Prettier (check) + tsc --noEmit nos 3 pacotes
 make format           # Prettier --write
@@ -143,6 +151,6 @@ Primeira vez no host: `npx playwright install chromium` dentro de `e2e/`.
 Por causa do proxy corporativo, agentes de IA **não** conseguem rodar comandos Docker que dependem de rede
 (`make up`, `make test`, `make test-env-up`, `docker compose ...`) nem `npm audit`. O agente deve:
 
-- rodar só o que funciona offline: `make lint` e `npm --prefix backend run test:unit` (com Node 22: `nvm use`);
+- rodar só o que funciona offline: `make lint`, `npm --prefix backend run test:unit` e `npm --prefix frontend test` (com Node 22: `nvm use`);
 - para o restante, informar o comando exato e pedir ao desenvolvedor que o execute e envie a saída completa;
 - não declarar a tarefa como concluída enquanto `make test` não tiver sido confirmado pelo desenvolvedor.
