@@ -2,7 +2,7 @@
 
 ## 1. Visão Geral
 
-O Carrinho de Compras permite que um cliente monte uma seleção de produtos, aplique um cupom de desconto e a converta em um Pedido. O carrinho é gerido por uma máquina de estados (Vazio, Com Itens, Em Checkout, Pedido Criado, Abandonado). A conversão em Pedido é atômica: ou tudo é aplicado (pedido criado, estoque decrementado, cupom consumido), ou nada muda.
+Esta funcionalidade inclui a API e a interface web do cliente (listagem com botão de adicionar, tela do carrinho e confirmação). O Carrinho de Compras permite que um cliente monte uma seleção de produtos, aplique um cupom de desconto e a converta em um Pedido. O carrinho é gerido por uma máquina de estados (Vazio, Com Itens, Em Checkout, Pedido Criado, Abandonado). A conversão em Pedido é atômica: ou tudo é aplicado (pedido criado, estoque decrementado, cupom consumido), ou nada muda.
 
 **Contexto:** o sistema é um e-commerce simplificado, com fins educacionais. A Listagem de Produtos já existe. Esta funcionalidade adiciona o carrinho, a aplicação de cupons e a criação do Pedido. O ciclo de vida do Pedido após a criação (Confirmado, Enviado, Entregue, Cancelado) fica fora deste FRD.
 
@@ -80,6 +80,28 @@ Não há papéis administrativos. Os cupons são cadastrados por seed (ver seç�
   4. Se tudo passar, é criado o **Pedido** com status inicial **Criado** (itens, preços unitários, total, desconto aplicado, cupom), o estoque é decrementado, o cupom é marcado como usado e o carrinho passa a **Pedido Criado** (estado final).
   5. Se qualquer verificação falhar, nada é alterado e o carrinho continua **Em Checkout** (RN-009).
 
+### Interface do Cliente
+
+**RF-012 — Adicionar da listagem**
+- Disparo: o cliente aciona "Adicionar ao carrinho" em um produto da listagem.
+- Resultado: é adicionada 1 unidade do produto ao carrinho do cliente (RF-003). Se o cliente ainda não tem carrinho, ele é criado nesse momento (RF-001). O botão fica desabilitado para produto com estoque 0. Se o carrinho não aceita a operação (estado) ou o estoque é insuficiente, o erro é exibido (RN-023).
+
+**RF-013 — Tela do carrinho**
+- Disparo: o cliente abre o carrinho.
+- Resultado: a tela mostra o estado, os itens (produto, quantidade, preço unitário, subtotal da linha), o cupom aplicado, o subtotal, o desconto e o total (RF-002). Oferece alterar quantidade (RF-004), remover item (RF-005), aplicar cupom por campo de texto (RF-006) e remover cupom (RF-007). Os controles disponíveis seguem a tabela "Operações proibidas por estado" (seção 6); os não permitidos não são exibidos ou ficam desabilitados.
+
+**RF-014 — Ações de checkout na tela**
+- Disparo: o cliente aciona iniciar checkout (RF-008), voltar a editar (RF-009), confirmar pedido (RF-011) ou abandonar (RF-010) na tela do carrinho.
+- Resultado: a operação correspondente é executada e a tela reflete o novo estado. Em caso de erro, o carrinho exibido permanece como está no servidor.
+
+**RF-015 — Continuidade do carrinho**
+- Disparo: o cliente recarrega ou reabre a aplicação.
+- Resultado: o carrinho é restaurado pelo id guardado no navegador, em qualquer estado, inclusive Abandonado e Pedido Criado. Se o id guardado não existe mais (`CART_NOT_FOUND`), ele é descartado e o cliente fica sem carrinho.
+
+**RF-016 — Confirmação e novo carrinho**
+- Disparo: a confirmação (RF-011) é bem-sucedida, ou o carrinho está em estado final.
+- Resultado: após confirmar, a tela mostra o resumo do pedido criado (número, itens, desconto e total). Em estado final (Pedido Criado ou Abandonado), a tela é somente leitura e oferece "Novo carrinho", que descarta o id guardado; o próximo "Adicionar ao carrinho" cria um novo carrinho. Ao recarregar após a confirmação, o resumo detalhado não é exibido (não há consulta de Pedido); a tela mostra o carrinho em Pedido Criado com o total.
+
 ## 4. Regras de Negócio
 
 ### Itens e quantidades
@@ -130,6 +152,11 @@ Não há papéis administrativos. Os cupons são cadastrados por seed (ver seç�
   - O timeout é configurável. Valores de referência: 600 segundos (10 minutos) em desenvolvimento e 10 segundos no ambiente de teste.
 - **RN-021 — Atomicidade da confirmação.** A confirmação (RF-011) é indivisível. Ou todos os efeitos acontecem (pedido criado, estoque decrementado, cupom marcado como usado, carrinho em Pedido Criado) ou nenhum.
 - **RN-022 — Irreversibilidade.** Pedido Criado não transita para nenhum outro estado.
+
+### Interface
+
+- **RN-023 — Mensagens de erro.** Todo código de erro da API tem uma mensagem em pt-BR exibida ao cliente. Em `INSUFFICIENT_STOCK` na confirmação, a mensagem lista cada item problemático com a quantidade pedida e a disponível. Códigos desconhecidos e `INTERNAL_ERROR` exibem uma mensagem genérica, sem detalhes internos.
+- **RN-024 — O servidor é a autoridade.** A interface esconde ou desabilita controles apenas por conveniência; as regras são sempre aplicadas pelo servidor. Após qualquer erro de estado (`INVALID_CART_STATE`, inclusive por timeout), a interface recarrega o carrinho e exibe o estado real. A interface não renova o contador de inatividade ao exibir ou recarregar o carrinho (RN-020).
 
 ## 5. Dados de Entrada
 
@@ -219,6 +246,8 @@ Uma operação não permitida no estado atual retorna `INVALID_CART_STATE` e nã
 | Dois carrinhos com o mesmo cupom; o primeiro confirma | O segundo falha na confirmação; pode remover o cupom e confirmar sem ele | `COUPON_ALREADY_USED` |
 | Estoque zerou depois de adicionar ao carrinho | Confirmação falha por inteiro; erro lista os itens, nada é alterado | `INSUFFICIENT_STOCK` |
 | Duas confirmações simultâneas disputando o último item | Uma vence e a outra falha por estoque insuficiente (RN-008) | `INSUFFICIENT_STOCK` |
+| Carrinho abandonado por timeout enquanto o cliente está na tela | A próxima escrita é recusada; a interface recarrega e exibe o carrinho Abandonado com "Novo carrinho" (RN-024) | `INVALID_CART_STATE` |
+| Id de carrinho guardado no navegador não existe mais | O id é descartado; o cliente fica sem carrinho (RF-015) | `CART_NOT_FOUND` |
 | Falha inesperada no meio da confirmação | Nada é persistido (RN-021); o carrinho permanece Em Checkout | `INTERNAL_ERROR` |
 | Preço do produto muda após adicionar | O carrinho mantém o preço congelado | n/a |
 | Remover o último item com cupom aplicado | Carrinho volta a Vazio e o cupom é removido | n/a |
@@ -257,5 +286,5 @@ Mensagens ao usuário seguem o contrato de erro da API: `{ "error": { "code": ".
 ## 10. Questões em Aberto
 
 1. **Consulta de Pedidos:** este FRD só cria o Pedido. Se uma consulta de Pedido por id será necessária antes do FRD do ciclo de vida é uma decisão futura.
-2. **Exposição de cupons ao cliente:** não há endpoint para listar cupons disponíveis; se isso for desejado (ex.: para a interface), precisa de decisão futura.
+2. **Exposição de cupons ao cliente:** não há endpoint para listar cupons disponíveis; a interface usa um campo de texto para o código. Listar cupons disponíveis precisa de decisão futura.
 3. **Limpeza de carrinhos abandonados:** não há política de retenção ou remoção; pode virar requisito se o volume crescer.
