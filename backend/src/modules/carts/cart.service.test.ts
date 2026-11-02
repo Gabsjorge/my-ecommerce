@@ -171,3 +171,193 @@ describe('CartService.withCartLock (timeout, RN-020)', () => {
     }
   });
 });
+
+const product = (overrides: Record<string, unknown> = {}) => ({
+  id: 5,
+  name: 'P',
+  description: '',
+  priceCents: 1000,
+  stock: 10,
+  ...overrides,
+});
+const line = (quantity: number, unitPriceCents = 1000) => ({
+  productId: 5,
+  name: 'P',
+  quantity,
+  unitPriceCents,
+});
+
+describe('CartService.addItem', () => {
+  it('creates a line with the current price and moves empty to with_items (RF-003, RN-004)', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'empty' }));
+    repos.products.findById.mockResolvedValue(product({ priceCents: 1234 }));
+    repos.carts.findItem.mockResolvedValue(null);
+    repos.carts.findDetails.mockResolvedValue(details());
+
+    await service.addItem(1, 5, 2);
+
+    expect(repos.carts.insertItem).toHaveBeenCalledWith(1, 5, 2, 1234);
+    expect(repos.carts.setStatus).toHaveBeenCalledWith(1, 'with_items');
+    expect(repos.carts.touch).toHaveBeenCalledWith(1, NOW);
+  });
+
+  it('sums into the existing line keeping the frozen price (RN-003, RN-004)', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'with_items' }));
+    repos.products.findById.mockResolvedValue(product({ priceCents: 9999 }));
+    repos.carts.findItem.mockResolvedValue(line(2, 1000));
+    repos.carts.findDetails.mockResolvedValue(details());
+
+    await service.addItem(1, 5, 3);
+
+    expect(repos.carts.updateQuantity).toHaveBeenCalledWith(1, 5, 5);
+    expect(repos.carts.insertItem).not.toHaveBeenCalled();
+    expect(repos.carts.setStatus).not.toHaveBeenCalled();
+  });
+
+  it('refuses a product with stock 0 and writes nothing (RN-005)', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'empty' }));
+    repos.products.findById.mockResolvedValue(product({ stock: 0 }));
+    repos.carts.findItem.mockResolvedValue(null);
+
+    await expect(service.addItem(1, 5, 1)).rejects.toMatchObject({
+      code: 'INSUFFICIENT_STOCK',
+      status: 409,
+      details: { items: [{ productId: 5, requested: 1, available: 0 }] },
+    });
+    expect(repos.carts.insertItem).not.toHaveBeenCalled();
+    expect(repos.carts.touch).not.toHaveBeenCalled();
+  });
+
+  it('refuses a sum above the stock and keeps the previous quantity', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'with_items' }));
+    repos.products.findById.mockResolvedValue(product({ stock: 3 }));
+    repos.carts.findItem.mockResolvedValue(line(2));
+
+    await expect(service.addItem(1, 5, 2)).rejects.toMatchObject({
+      code: 'INSUFFICIENT_STOCK',
+      details: { items: [{ productId: 5, requested: 4, available: 3 }] },
+    });
+    expect(repos.carts.updateQuantity).not.toHaveBeenCalled();
+  });
+
+  it('accepts a quantity equal to the stock', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'empty' }));
+    repos.products.findById.mockResolvedValue(product({ stock: 3 }));
+    repos.carts.findItem.mockResolvedValue(null);
+    repos.carts.findDetails.mockResolvedValue(details());
+
+    await service.addItem(1, 5, 3);
+    expect(repos.carts.insertItem).toHaveBeenCalledWith(1, 5, 3, 1000);
+  });
+
+  it('throws PRODUCT_NOT_FOUND for an unknown product', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'empty' }));
+    repos.products.findById.mockResolvedValue(null);
+    await expect(service.addItem(1, 5, 1)).rejects.toMatchObject({ code: 'PRODUCT_NOT_FOUND' });
+  });
+
+  it.each(['in_checkout', 'order_created', 'abandoned'] as const)(
+    'refuses in state %s before looking at the product (RN-018)',
+    async (status) => {
+      const { repos, service } = build();
+      repos.carts.lockById.mockResolvedValue(makeCart({ status }));
+
+      await expect(service.addItem(1, 5, 1)).rejects.toMatchObject({ code: 'INVALID_CART_STATE' });
+      expect(repos.products.findById).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('CartService.updateItemQuantity', () => {
+  it('replaces the quantity (RF-004)', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'with_items' }));
+    repos.carts.findItem.mockResolvedValue(line(2));
+    repos.products.findById.mockResolvedValue(product({ stock: 10 }));
+    repos.carts.findDetails.mockResolvedValue(details());
+
+    await service.updateItemQuantity(1, 5, 7);
+
+    expect(repos.carts.updateQuantity).toHaveBeenCalledWith(1, 5, 7);
+    expect(repos.carts.touch).toHaveBeenCalled();
+  });
+
+  it('throws CART_ITEM_NOT_FOUND when there is no line', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'with_items' }));
+    repos.carts.findItem.mockResolvedValue(null);
+    await expect(service.updateItemQuantity(1, 5, 2)).rejects.toMatchObject({
+      code: 'CART_ITEM_NOT_FOUND',
+    });
+  });
+
+  it('refuses a quantity above the stock', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'with_items' }));
+    repos.carts.findItem.mockResolvedValue(line(1));
+    repos.products.findById.mockResolvedValue(product({ stock: 3 }));
+
+    await expect(service.updateItemQuantity(1, 5, 4)).rejects.toMatchObject({
+      code: 'INSUFFICIENT_STOCK',
+    });
+    expect(repos.carts.updateQuantity).not.toHaveBeenCalled();
+  });
+
+  it.each(['empty', 'in_checkout', 'abandoned'] as const)('refuses in state %s', async (status) => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status }));
+    await expect(service.updateItemQuantity(1, 5, 2)).rejects.toMatchObject({
+      code: 'INVALID_CART_STATE',
+    });
+  });
+});
+
+describe('CartService.removeItem', () => {
+  it('keeps with_items and the coupon while items remain', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'with_items', couponId: 3 }));
+    repos.carts.findItem.mockResolvedValue(line(1));
+    repos.carts.findDetails.mockResolvedValue(details({ items: [line(1)] }));
+
+    await service.removeItem(1, 5);
+
+    expect(repos.carts.deleteItem).toHaveBeenCalledWith(1, 5);
+    expect(repos.carts.setStatus).not.toHaveBeenCalled();
+    expect(repos.carts.setCoupon).not.toHaveBeenCalled();
+  });
+
+  it('returns to empty and drops the coupon when the last item goes (RN-016)', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'with_items', couponId: 3 }));
+    repos.carts.findItem.mockResolvedValue(line(1));
+    repos.carts.findDetails.mockResolvedValue(details());
+
+    await service.removeItem(1, 5);
+
+    expect(repos.carts.setStatus).toHaveBeenCalledWith(1, 'empty');
+    expect(repos.carts.setCoupon).toHaveBeenCalledWith(1, null);
+  });
+
+  it('throws CART_ITEM_NOT_FOUND without deleting', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'with_items' }));
+    repos.carts.findItem.mockResolvedValue(null);
+    await expect(service.removeItem(1, 5)).rejects.toMatchObject({ code: 'CART_ITEM_NOT_FOUND' });
+    expect(repos.carts.deleteItem).not.toHaveBeenCalled();
+  });
+
+  it.each(['empty', 'in_checkout', 'order_created'] as const)(
+    'refuses in state %s',
+    async (status) => {
+      const { repos, service } = build();
+      repos.carts.lockById.mockResolvedValue(makeCart({ status }));
+      await expect(service.removeItem(1, 5)).rejects.toMatchObject({ code: 'INVALID_CART_STATE' });
+    },
+  );
+});

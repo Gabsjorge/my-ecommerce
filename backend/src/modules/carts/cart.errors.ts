@@ -16,3 +16,21 @@ export class CartNotFoundError extends AppError {
     super('CART_NOT_FOUND', 'Cart not found', 404);
   }
 }
+
+export class CartItemNotFoundError extends AppError {
+  constructor() {
+    super('CART_ITEM_NOT_FOUND', 'Item not found in the cart', 404);
+  }
+}
+
+export interface StockShortage {
+  productId: number;
+  requested: number;
+  available: number;
+}
+
+export class InsufficientStockError extends AppError {
+  constructor(items: readonly StockShortage[]) {
+    super('INSUFFICIENT_STOCK', 'Insufficient stock', 409, { items });
+  }
+}
