@@ -16,6 +16,7 @@ export interface AppDeps {
 export function createApp({ db }: AppDeps): express.Express {
   const app = express();
   app.disable('x-powered-by');
+  app.use(express.json({ limit: '10kb' }));
 
   app.use('/health', createHealthRoutes(new HealthController(() => pingDb(db))));
 
