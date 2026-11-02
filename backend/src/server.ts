@@ -4,7 +4,10 @@ import { createDb, createPool } from './db/client';
 
 const env = loadEnv();
 const pool = createPool(env.DATABASE_URL);
-const app = createApp({ db: createDb(pool) });
+const app = createApp({
+  db: createDb(pool),
+  cartInactivityTimeoutSeconds: env.CART_INACTIVITY_TIMEOUT_SECONDS,
+});
 
 const server = app.listen(env.BACKEND_PORT, '0.0.0.0', () => {
   console.log(`Backend listening on port ${env.BACKEND_PORT}`);

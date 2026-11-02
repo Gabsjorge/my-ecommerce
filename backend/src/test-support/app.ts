@@ -11,13 +11,13 @@ export interface TestApp {
 }
 
 export interface TestAppOptions {
-  // Declared now, forwarded to createApp once AppDeps accepts an injectable clock.
   clock?: () => Date;
+  cartInactivityTimeoutSeconds?: number;
 }
 
 // Integration-test composition: real database from DATABASE_URL, same wiring as production.
-export function createTestApp(_options: TestAppOptions = {}): TestApp {
+export function createTestApp(options: TestAppOptions = {}): TestApp {
   const pool = createPool(process.env.DATABASE_URL as string);
   const db = createDb(pool);
-  return { app: createApp({ db }), db, pool, close: () => pool.end() };
+  return { app: createApp({ db, ...options }), db, pool, close: () => pool.end() };
 }
