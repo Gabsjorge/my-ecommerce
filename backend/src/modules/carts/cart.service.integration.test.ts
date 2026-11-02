@@ -138,3 +138,79 @@ describe('CartService items (integration)', () => {
     expect((await readCart(cart.id)).lastActivityAt).toEqual(now);
   });
 });
+
+describe('CartService coupons (integration)', () => {
+  async function cartWithItem(unitStock = 10) {
+    const product = await createProduct(db, cleanup, { priceCents: 1000, stock: unitStock });
+    const cart = await createCart(db, cleanup);
+    await service.addItem(cart.id, product.id, 2);
+    return { product, cart };
+  }
+
+  it('applies a percentage coupon and reflects the discount (RF-006, RN-015)', async () => {
+    const { cart } = await cartWithItem();
+    const coupon = await createCoupon(db, cleanup, { type: 'percentage', value: 10 });
+
+    const view = await service.applyCoupon(cart.id, coupon.code);
+
+    expect(view.coupon).toEqual({ code: coupon.code, type: 'percentage', value: 10 });
+    expect(view).toMatchObject({ subtotalCents: 2000, discountCents: 200, totalCents: 1800 });
+  });
+
+  it('refuses a second coupon and removal without a coupon', async () => {
+    const { cart } = await cartWithItem();
+    const first = await createCoupon(db, cleanup);
+    const second = await createCoupon(db, cleanup);
+    await expect(service.removeCoupon(cart.id)).rejects.toMatchObject({
+      code: 'COUPON_NOT_APPLIED',
+    });
+
+    await service.applyCoupon(cart.id, first.code);
+    await expect(service.applyCoupon(cart.id, second.code)).rejects.toMatchObject({
+      code: 'COUPON_ALREADY_APPLIED',
+    });
+    expect((await service.removeCoupon(cart.id)).coupon).toBeNull();
+  });
+
+  it('applying does not consume the coupon: two carts may hold the same one (RN-013)', async () => {
+    const a = await cartWithItem();
+    const b = await cartWithItem();
+    const coupon = await createCoupon(db, cleanup);
+
+    await service.applyCoupon(a.cart.id, coupon.code);
+    await expect(service.applyCoupon(b.cart.id, coupon.code)).resolves.toMatchObject({
+      coupon: { code: coupon.code },
+    });
+  });
+
+  it('refuses an empty cart, an expired coupon and a coupon below the minimum', async () => {
+    const empty = await createCart(db, cleanup);
+    const live = await createCoupon(db, cleanup);
+    await expect(service.applyCoupon(empty.id, live.code)).rejects.toMatchObject({
+      code: 'INVALID_CART_STATE',
+    });
+
+    const { cart } = await cartWithItem();
+    const expired = await createCoupon(db, cleanup, {
+      expiresAt: new Date('2020-01-01T00:00:00Z'),
+    });
+    const min = await createCoupon(db, cleanup, { minOrderCents: 5000 });
+    await expect(service.applyCoupon(cart.id, expired.code)).rejects.toMatchObject({
+      code: 'COUPON_EXPIRED',
+    });
+    await expect(service.applyCoupon(cart.id, min.code)).rejects.toMatchObject({
+      code: 'COUPON_MIN_ORDER_NOT_MET',
+    });
+  });
+
+  it('keeps the coupon and a recalculated discount after the subtotal drops under the minimum', async () => {
+    const { cart, product } = await cartWithItem();
+    const coupon = await createCoupon(db, cleanup, { minOrderCents: 2000, value: 50 });
+    await service.applyCoupon(cart.id, coupon.code);
+
+    const view = await service.updateItemQuantity(cart.id, product.id, 1);
+
+    expect(view.coupon?.code).toBe(coupon.code);
+    expect(view).toMatchObject({ subtotalCents: 1000, discountCents: 500, totalCents: 500 });
+  });
+});

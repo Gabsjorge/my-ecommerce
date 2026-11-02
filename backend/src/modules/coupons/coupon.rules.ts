@@ -31,11 +31,12 @@ function assertUsable(
   if (subtotalCents < coupon.minOrderCents) throw new CouponMinOrderNotMetError();
 }
 
-// RN-010, in order: exists, cart has no coupon, not expired, not used, minimum met.
-export function validateOnApply(input: ApplyInput): void {
+// RN-010, in order: exists, cart has no coupon, not expired, not used, minimum met. Returns the validated coupon.
+export function validateOnApply(input: ApplyInput): Coupon {
   if (!input.coupon) throw new CouponNotFoundError();
   if (input.cartCouponId !== null) throw new CouponAlreadyAppliedError();
   assertUsable(input.coupon, input.subtotalCents, input.now);
+  return input.coupon;
 }
 
 // RN-011: existence, expiry, usage and minimum are checked again against the current state.

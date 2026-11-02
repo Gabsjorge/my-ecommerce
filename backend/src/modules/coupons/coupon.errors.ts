@@ -29,3 +29,9 @@ export class CouponMinOrderNotMetError extends AppError {
     super('COUPON_MIN_ORDER_NOT_MET', 'Order does not reach the coupon minimum', 422);
   }
 }
+
+export class CouponNotAppliedError extends AppError {
+  constructor() {
+    super('COUPON_NOT_APPLIED', 'The cart has no coupon applied', 409);
+  }
+}

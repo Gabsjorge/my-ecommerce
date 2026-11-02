@@ -361,3 +361,131 @@ describe('CartService.removeItem', () => {
     },
   );
 });
+
+const coupon = (overrides: Record<string, unknown> = {}) => ({
+  id: 9,
+  code: 'DESC10',
+  type: 'percentage' as const,
+  value: 10,
+  minOrderCents: 0,
+  expiresAt: new Date('2099-12-31T00:00:00Z'),
+  usedAt: null,
+  ...overrides,
+});
+
+function couponScenario(cartOverrides = {}, items = [line(2)]) {
+  const ctx = build();
+  ctx.repos.carts.lockById.mockResolvedValue(makeCart({ status: 'with_items', ...cartOverrides }));
+  ctx.repos.carts.findDetails.mockResolvedValue(details({ items }));
+  return ctx;
+}
+
+describe('CartService.applyCoupon', () => {
+  it('associates a valid coupon and registers the write (RF-006)', async () => {
+    const { repos, service } = couponScenario();
+    repos.coupons.findByCode.mockResolvedValue(coupon());
+
+    await service.applyCoupon(1, 'DESC10');
+
+    expect(repos.coupons.findByCode).toHaveBeenCalledWith('DESC10');
+    expect(repos.carts.setCoupon).toHaveBeenCalledWith(1, 9);
+    expect(repos.carts.touch).toHaveBeenCalled();
+  });
+
+  it('works in in_checkout too', async () => {
+    const { repos, service } = couponScenario({ status: 'in_checkout' });
+    repos.coupons.findByCode.mockResolvedValue(coupon());
+    await service.applyCoupon(1, 'DESC10');
+    expect(repos.carts.setCoupon).toHaveBeenCalledWith(1, 9);
+  });
+
+  it('refuses an empty cart with INVALID_CART_STATE before looking at the coupon', async () => {
+    const { repos, service } = couponScenario({ status: 'empty' }, []);
+    await expect(service.applyCoupon(1, 'DESC10')).rejects.toMatchObject({
+      code: 'INVALID_CART_STATE',
+    });
+    expect(repos.coupons.findByCode).not.toHaveBeenCalled();
+  });
+
+  it.each(['order_created', 'abandoned'] as const)('refuses in state %s', async (status) => {
+    const { service } = couponScenario({ status });
+    await expect(service.applyCoupon(1, 'DESC10')).rejects.toMatchObject({
+      code: 'INVALID_CART_STATE',
+    });
+  });
+
+  // RN-010 order: exists, not already applied, not expired, not used, minimum.
+  it.each([
+    ['COUPON_NOT_FOUND', null, {}],
+    ['COUPON_ALREADY_APPLIED', coupon(), { couponId: 4 }],
+    ['COUPON_EXPIRED', coupon({ expiresAt: new Date('2020-01-01T00:00:00Z') }), {}],
+    ['COUPON_ALREADY_USED', coupon({ usedAt: new Date('2020-01-01T00:00:00Z') }), {}],
+    ['COUPON_MIN_ORDER_NOT_MET', coupon({ minOrderCents: 999999 }), {}],
+  ])('fails with %s and leaves the cart untouched', async (code, found, cartOverrides) => {
+    const { repos, service } = couponScenario(cartOverrides);
+    repos.coupons.findByCode.mockResolvedValue(found);
+
+    await expect(service.applyCoupon(1, 'X')).rejects.toMatchObject({ code });
+    expect(repos.carts.setCoupon).not.toHaveBeenCalled();
+    expect(repos.carts.touch).not.toHaveBeenCalled();
+  });
+
+  it('reports already-applied before expired and used when several problems coexist', async () => {
+    const { repos, service } = couponScenario({ couponId: 4 });
+    repos.coupons.findByCode.mockResolvedValue(
+      coupon({ expiresAt: new Date('2020-01-01T00:00:00Z'), usedAt: new Date() }),
+    );
+    await expect(service.applyCoupon(1, 'X')).rejects.toMatchObject({
+      code: 'COUPON_ALREADY_APPLIED',
+    });
+  });
+
+  it('compares the minimum against the subtotal before any discount', async () => {
+    const { repos, service } = couponScenario({}, [line(2, 1000)]);
+    repos.coupons.findByCode.mockResolvedValue(coupon({ minOrderCents: 2000 }));
+    await service.applyCoupon(1, 'DESC10');
+    expect(repos.carts.setCoupon).toHaveBeenCalledWith(1, 9);
+  });
+});
+
+describe('CartService.removeCoupon', () => {
+  it('clears the coupon (RF-007)', async () => {
+    const { repos, service } = couponScenario({ couponId: 9 });
+    await service.removeCoupon(1);
+    expect(repos.carts.setCoupon).toHaveBeenCalledWith(1, null);
+  });
+
+  it('fails with COUPON_NOT_APPLIED when there is none', async () => {
+    const { repos, service } = couponScenario();
+    await expect(service.removeCoupon(1)).rejects.toMatchObject({
+      code: 'COUPON_NOT_APPLIED',
+      status: 409,
+    });
+    expect(repos.carts.touch).not.toHaveBeenCalled();
+  });
+
+  it('refuses in a final state', async () => {
+    const { service } = couponScenario({ status: 'abandoned', couponId: 9 });
+    await expect(service.removeCoupon(1)).rejects.toMatchObject({ code: 'INVALID_CART_STATE' });
+  });
+});
+
+describe('coupon kept below the minimum (RN-016)', () => {
+  it('keeps the coupon when an item removal drops the subtotal under the minimum', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'with_items', couponId: 9 }));
+    repos.carts.findItem.mockResolvedValue(line(1));
+    const remaining = details({
+      cart: makeCart({ status: 'with_items', couponId: 9 }),
+      items: [line(1, 500)],
+      coupon: { id: 9, code: 'MIN200', type: 'percentage', value: 15 },
+    });
+    repos.carts.findDetails.mockResolvedValue(remaining);
+
+    const view = await service.removeItem(1, 5);
+
+    expect(repos.carts.setCoupon).not.toHaveBeenCalled();
+    expect(view.coupon?.code).toBe('MIN200');
+    expect(view).toMatchObject({ subtotalCents: 500, discountCents: 75, totalCents: 425 });
+  });
+});

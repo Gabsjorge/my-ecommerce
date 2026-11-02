@@ -1,4 +1,6 @@
-import { computeTotals } from './cart.pricing';
+import { computeTotals, subtotalCents } from './cart.pricing';
+import { CouponNotAppliedError } from '../coupons/coupon.errors';
+import { validateOnApply } from '../coupons/coupon.rules';
 import { ProductNotFoundError } from '../products/product.errors';
 import {
   CartItemNotFoundError,
@@ -121,6 +123,36 @@ export class CartService {
       });
       if (to !== cart.status) await repos.carts.setStatus(cart.id, to);
       if (clearCoupon) await repos.carts.setCoupon(cart.id, null);
+      return this.finishWrite(locked);
+    });
+  }
+
+  // RF-006: `code` arrives normalized by the schema (RN-014). Validations follow RN-010, in order.
+  applyCoupon(cartId: number, code: string): Promise<CartView> {
+    return this.withCartLock(cartId, 'APPLY_COUPON', async (locked) => {
+      const { repos, cart, now } = locked;
+      // An empty cart is refused here with INVALID_CART_STATE.
+      nextState('APPLY_COUPON', cart.status);
+      const coupon = await repos.coupons.findByCode(code);
+      const current = await repos.carts.findDetails(cart.id);
+      const validated = validateOnApply({
+        coupon,
+        cartCouponId: cart.couponId,
+        subtotalCents: subtotalCents(current?.items ?? []),
+        now,
+      });
+      await repos.carts.setCoupon(cart.id, validated.id);
+      return this.finishWrite(locked);
+    });
+  }
+
+  // RF-007
+  removeCoupon(cartId: number): Promise<CartView> {
+    return this.withCartLock(cartId, 'REMOVE_COUPON', async (locked) => {
+      const { repos, cart } = locked;
+      nextState('REMOVE_COUPON', cart.status);
+      if (cart.couponId === null) throw new CouponNotAppliedError();
+      await repos.carts.setCoupon(cart.id, null);
       return this.finishWrite(locked);
     });
   }
