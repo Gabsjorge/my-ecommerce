@@ -13,6 +13,12 @@ export function createDb(pool: Pool) {
 
 export type Database = ReturnType<typeof createDb>;
 
+// Transaction handle received by `db.transaction(async (tx) => ...)`.
+export type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+// Repositories accept either, so the same code runs inside or outside a transaction.
+export type Executor = Database | Tx;
+
 // Infrastructure check used by /health (not a business query).
 export async function pingDb(db: Database): Promise<void> {
   await db.execute(sql`select 1`);
