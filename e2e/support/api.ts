@@ -8,6 +8,7 @@ export const PRODUCT_NAMES = {
   lastItem: 'Edição Limitada Caderno Artesanal (Último Item)',
   limitedStock: 'Mochila Escolar Compacta (Estoque Limitado)',
   outOfStock: 'Caderno Universitário 200 folhas',
+  regular: 'Camiseta Básica Algodão',
 } as const;
 
 export const COUPON_CODES = {
