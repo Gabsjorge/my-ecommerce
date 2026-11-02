@@ -63,6 +63,7 @@ my-ecommerce/
 ├── docs/
 │   ├── high_level_requirements.md
 │   ├── system_architecture.md
+│   ├── scaffolding-blueprint.md
 │   └── scaffolding-specification.md  # Este documento
 │
 ├── backend/
@@ -84,7 +85,9 @@ my-ecommerce/
 │       │   ├── client.ts             # Pool pg + instância Drizzle
 │       │   ├── schema.ts             # Tabelas Drizzle (products)
 │       │   ├── migrate.ts            # Aplica migrations programaticamente
-│       │   └── seed.ts               # Seed idempotente (só se products estiver vazia)
+│       │   ├── seed.ts               # Seed idempotente (só se products estiver vazia)
+│       │   ├── seed.test.ts          # unitário (dataset do seed)
+│       │   └── seed.integration.test.ts  # idempotência contra DB real
 │       ├── shared/
 │       │   ├── errors.ts             # AppError, NotFoundError
 │       │   └── error-handler.middleware.ts   # Handler 404 e de erro no formato padrão
@@ -181,7 +184,7 @@ Só `typescript` (dev), para `tsc --noEmit` com `checkJs`. Não há dependência
 ### Convenções
 
 - Rotas de negócio sob `/api`. O `/health` fica fora do prefixo.
-- O nginx faz proxy apenas de `/api/`. O `/health` do backend é verificado pelo healthcheck do Compose (direto no container) e pelos testes de integração do backend.
+- O nginx faz proxy apenas de `/api/`, exceto arquivos `.js` sob `/api/` (`/api/*.js`), que são os módulos ES do próprio frontend (`src/api/`) e são servidos do disco. O `/health` do backend é verificado pelo healthcheck do Compose (direto no container) e pelos testes de integração do backend.
 - Campos em JSON usam `camelCase`. Preço trafega em **centavos, inteiro** (`priceCents`).
 
 ### `GET /api/products`
@@ -342,6 +345,15 @@ server {
   root /usr/share/nginx/html;
   index index.html;
   add_header Cache-Control "no-cache" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "DENY" always;
+  add_header Referrer-Policy "same-origin" always;
+
+  # src/api/ do frontend colide com o prefixo /api/: servir os .js do disco.
+  # Locations regex vencem o prefixo. Nenhuma rota do backend termina em .js.
+  location ~ ^/api/.+\.js$ {
+    try_files $uri =404;
+  }
 
   location /api/ {
     proxy_pass http://backend:3000;      # sem URI: preserva /api/...
@@ -426,9 +438,10 @@ Senhas com caracteres especiais precisam ser codificadas em URL na `DATABASE_URL
 
 ### `docker-compose.dev.yml`
 
-- `db`: `volumes: [db_data:/var/lib/postgresql/data]` (volume nomeado, declarado em `volumes:`) e `ports: ["${DB_PORT}:5432"]`.
-- `migrate` e `backend`: `build.target: dev`, `NODE_ENV: development`. O `migrate` usa `command: ["sh","-c","npm run db:migrate && npm run db:seed"]` (via `tsx`). O `backend` monta `./backend/src:/app/src` e `./backend/drizzle:/app/drizzle`, e publica `${BACKEND_PORT}:3000`.
-- `frontend`: monta `./frontend/src:/usr/share/nginx/html:ro` e `./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro`, e publica `${FRONTEND_PORT}:8080`.
+- Todas as portas publicadas usam `127.0.0.1:` como prefixo (ex.: `127.0.0.1:${DB_PORT}:5432`), para não expor serviços na rede local.
+- `db`: `volumes: [db_data:/var/lib/postgresql/data]` (volume nomeado, declarado em `volumes:`) e `ports: ["127.0.0.1:${DB_PORT}:5432"]`.
+- `migrate` e `backend`: `build.target: dev`, `NODE_ENV: development`. O `migrate` usa `command: ["sh","-c","npm run db:migrate && npm run db:seed"]` (via `tsx`). O `backend` monta `./backend/src:/app/src` e `./backend/drizzle:/app/drizzle`, e publica `127.0.0.1:${BACKEND_PORT}:3000`.
+- `frontend`: monta `./frontend/src:/usr/share/nginx/html:ro` e `./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro`, e publica `127.0.0.1:${FRONTEND_PORT}:8080`.
 
 ### `docker-compose.test.yml`
 
@@ -439,7 +452,7 @@ Senhas com caracteres especiais precisam ser codificadas em URL na `DATABASE_URL
 
 ### `docker-compose.test.local.yml`
 
-Publica `${TEST_LOCAL_FRONTEND_PORT}:8080` no `frontend`. Usado só para depuração, com o projeto `ecommerce-test-local`.
+Publica `127.0.0.1:${TEST_LOCAL_FRONTEND_PORT}:8080` no `frontend`. Usado só para depuração, com o projeto `ecommerce-test-local`.
 
 ### Projetos Compose
 
@@ -632,6 +645,10 @@ O `down -v` roda mesmo com falha e o código de saída do teste é preservado. O
 
 - `up --wait` com o serviço one-shot `migrate`: confirmar que a versão instalada do Docker Compose trata o `migrate` concluído com sucesso como pronto. Se não tratar, substituir por `up -d` seguido de espera pelo healthcheck do `frontend`.
 - Dev com bind mount no macOS: confirmar que `tsx watch` detecta as alterações em `backend/src`.
+- Ambientes com proxy corporativo: Docker (pull/build) e `npm audit` podem exigir rede/credenciais que só o
+  desenvolvedor tem. Os critérios de aceite 1–4 e 7 (§13) e o `npm audit` são então executados por ele, que
+  anexa a saída completa à revisão.
+- Node do host: o Vitest e o lint exigem Node 22 (`.nvmrc`); com Node 18 o Vitest falha ao carregar a config.
 
 ---
 

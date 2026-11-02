@@ -1,2 +1,29 @@
+# Local agent skills (not part of the project)
 skills/
+
+# Dependencies
+node_modules/
+
+# Build output
+backend/dist/
+
+# Local environment (only .env.example and .env.test are committed)
+.env
+
+# Playwright artifacts
+e2e/playwright-report/
+e2e/test-results/
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+
+# Operating system
 .DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+tmp/
+coverage/

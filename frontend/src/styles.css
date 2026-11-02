@@ -1,0 +1,39 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0 auto;
+  max-width: 960px;
+  padding: 1rem;
+  color: #1f2937;
+}
+
+.product-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+}
+
+.product-item {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.product-item h2 {
+  font-size: 1.1rem;
+  margin: 0 0 0.5rem;
+}
+
+.badge {
+  display: inline-block;
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: 4px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.85rem;
+}
+
+[data-testid='error-message'] {
+  color: #991b1b;
+}

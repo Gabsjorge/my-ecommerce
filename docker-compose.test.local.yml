@@ -1,0 +1,5 @@
+# Debug-only override: publishes the test frontend so Playwright can run on the host.
+services:
+  frontend:
+    ports:
+      - '127.0.0.1:${TEST_LOCAL_FRONTEND_PORT}:8080'
