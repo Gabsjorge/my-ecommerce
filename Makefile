@@ -6,7 +6,7 @@ PACKAGES = backend frontend e2e
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install up down clean logs migrate seed test test-backend test-e2e \
+.PHONY: help install up down clean logs migrate seed test test-backend test-frontend test-e2e \
 	test-env-up test-env-down test-env-reset test-e2e-local lint format check
 
 help: ## List the available targets
@@ -35,11 +35,14 @@ migrate: ## Run migrations manually in dev
 seed: ## Run the seed manually in dev
 	$(COMPOSE_DEV) run --rm migrate sh -c "npm run db:seed"
 
-test: test-backend test-e2e ## Full suite (Docker only)
+test: test-backend test-frontend test-e2e ## Full suite (Docker only)
 
 test-backend: ## Vitest (unit + integration) against an ephemeral Postgres
 	$(COMPOSE_TEST) --profile tools build
 	$(COMPOSE_TEST) run --rm backend-test; rc=$$?; $(COMPOSE_TEST) down -v; exit $$rc
+
+test-frontend: ## node:test unit tests of the frontend (containerized)
+	$(COMPOSE_TEST) --profile tools run --rm frontend-test
 
 test-e2e: ## Playwright (api + ui) against the full test stack
 	mkdir -p e2e/playwright-report e2e/test-results

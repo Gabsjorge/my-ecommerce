@@ -37,6 +37,11 @@ export default [
     ...js.configs.recommended,
     languageOptions: { sourceType: 'module', globals: globals.browser },
   },
+  // Frontend unit tests (node:test, run by Node)
+  {
+    files: ['frontend/src/**/*.test.js'],
+    languageOptions: { globals: globals.node },
+  },
   // Root config files
   {
     files: ['*.js'],

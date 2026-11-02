@@ -25,6 +25,14 @@ services:
       db: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
 
+  frontend-test:
+    profiles: ['tools']
+    image: node:22-alpine
+    working_dir: /app
+    command: ['npm', 'test']
+    volumes:
+      - ./frontend:/app
+
   e2e:
     profiles: ['tools']
     build: ./e2e
