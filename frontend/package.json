@@ -2,6 +2,7 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Product listing UI (plain JS, ES modules, no build)",
   "scripts": {
     "test": "node --test \"src/**/*.test.js\"",
