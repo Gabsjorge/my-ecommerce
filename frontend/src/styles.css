@@ -37,3 +37,63 @@ body {
 [data-testid='error-message'] {
   color: #991b1b;
 }
+
+header nav {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+[data-testid='cart-error'] {
+  color: #991b1b;
+  background: #fee2e2;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  white-space: pre-line;
+}
+
+.product-item button,
+.cart-actions button,
+.cart-item button,
+form button {
+  cursor: pointer;
+}
+
+.product-item button:disabled {
+  cursor: not-allowed;
+}
+
+.cart-items {
+  list-style: none;
+  padding: 0;
+}
+
+.cart-item {
+  display: grid;
+  grid-template-columns: 1fr auto 5rem auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0.5rem 0;
+}
+
+.cart-item input {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: right;
+}
+
+.cart-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.order-summary {
+  border: 1px solid #86efac;
+  background: #f0fdf4;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}

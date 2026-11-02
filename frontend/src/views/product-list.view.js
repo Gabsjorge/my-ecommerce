@@ -1,21 +1,8 @@
 // @ts-check
 import { formatPrice, isOutOfStock } from '../domain/product.js';
+import { element } from './dom.js';
 
 /** @typedef {import('../api/products.api.js').Product} Product */
-
-/**
- * @param {string} tag
- * @param {string} testId
- * @param {string} [text]
- * @returns {HTMLElement}
- */
-function element(tag, testId, text) {
-  const el = document.createElement(tag);
-  el.dataset.testid = testId;
-  // textContent only: never inject data through innerHTML.
-  if (text !== undefined) el.textContent = text;
-  return el;
-}
 
 /** @param {HTMLElement} root */
 export function renderLoading(root) {
@@ -38,8 +25,9 @@ export function renderError(root, message) {
 /**
  * @param {HTMLElement} root
  * @param {Product[]} products
+ * @param {{ onAdd: (productId: number) => Promise<void> }} handlers
  */
-export function renderProducts(root, products) {
+export function renderProducts(root, products, { onAdd }) {
   const list = element('ul', 'product-list');
   list.className = 'product-list';
 
@@ -59,6 +47,22 @@ export function renderProducts(root, products) {
       badge.className = 'badge';
       item.append(badge);
     }
+
+    const add = /** @type {HTMLButtonElement} */ (
+      element('button', 'add-to-cart-button', 'Adicionar ao carrinho')
+    );
+    add.type = 'button';
+    add.disabled = isOutOfStock(product);
+    add.addEventListener('click', async () => {
+      // Blocks double clicks while the request is in flight.
+      add.disabled = true;
+      try {
+        await onAdd(product.id);
+      } finally {
+        add.disabled = isOutOfStock(product);
+      }
+    });
+    item.append(add);
 
     list.append(item);
   }
