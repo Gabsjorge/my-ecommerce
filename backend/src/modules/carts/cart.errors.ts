@@ -10,3 +10,9 @@ export class InvalidCartStateError extends AppError {
     );
   }
 }
+
+export class CartNotFoundError extends AppError {
+  constructor() {
+    super('CART_NOT_FOUND', 'Cart not found', 404);
+  }
+}

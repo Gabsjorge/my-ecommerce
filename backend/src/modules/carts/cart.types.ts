@@ -60,3 +60,21 @@ export interface CartRepositoryPort {
   // Conditional and atomic; never changes last_activity_at. True when the cart was abandoned.
   abandonIfExpired(cartId: number, cutoff: Date): Promise<boolean>;
 }
+
+export interface CartItemView {
+  productId: number;
+  name: string;
+  quantity: number;
+  unitPriceCents: number;
+  subtotalCents: number;
+}
+
+export interface CartView {
+  id: number;
+  status: CartStatus;
+  items: CartItemView[];
+  coupon: { code: string; type: 'percentage' | 'fixed'; value: number } | null;
+  subtotalCents: number;
+  discountCents: number;
+  totalCents: number;
+}
