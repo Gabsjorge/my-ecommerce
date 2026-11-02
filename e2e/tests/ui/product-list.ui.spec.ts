@@ -8,10 +8,10 @@ interface ApiProduct {
 }
 
 test.describe('product list page', () => {
-  test('shows the 6 products with the first name visible', async ({ page }) => {
+  test('shows the 10 products with the first name visible', async ({ page }) => {
     await page.goto('/');
     const items = page.getByTestId('product-item');
-    await expect(items).toHaveCount(6);
+    await expect(items).toHaveCount(10);
     await expect(items.first().getByTestId('product-name')).toHaveText('Camiseta Básica Algodão');
   });
 
@@ -23,7 +23,7 @@ test.describe('product list page', () => {
 
   test('shows the out-of-stock badge only for products with stock 0', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByTestId('product-item')).toHaveCount(6);
+    await expect(page.getByTestId('product-item')).toHaveCount(10);
     await expect(page.getByTestId('out-of-stock-badge')).toHaveCount(1);
     await expect(page.getByTestId('out-of-stock-badge')).toHaveText('Sem estoque');
     const outOfStock = page.getByTestId('product-item').filter({

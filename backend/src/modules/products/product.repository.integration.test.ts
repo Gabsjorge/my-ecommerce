@@ -10,9 +10,9 @@ afterAll(async () => {
 });
 
 describe('ProductRepository.findAll (integration)', () => {
-  it('returns the 6 seeded products ordered by id', async () => {
+  it('returns the 10 seeded products ordered by id', async () => {
     const products = await repository.findAll();
-    expect(products).toHaveLength(6);
+    expect(products).toHaveLength(10);
     const ids = products.map((p) => p.id);
     expect(ids).toEqual([...ids].sort((a, b) => a - b));
   });
