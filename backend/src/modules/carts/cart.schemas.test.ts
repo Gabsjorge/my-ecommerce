@@ -30,6 +30,15 @@ describe('cartParamsSchema / cartItemParamsSchema', () => {
       expect.objectContaining(invalid),
     );
   });
+
+  it.each(['-1', '1.5', 'abc', '', '2147483648', '99999999999999999999'])(
+    'rejects productId %j in the path (DELETE/PATCH item)',
+    (productId) => {
+      expect(() => parseOrThrow(cartItemParamsSchema, { cartId: '1', productId })).toThrow(
+        expect.objectContaining(invalid),
+      );
+    },
+  );
 });
 
 describe('addItemBodySchema', () => {

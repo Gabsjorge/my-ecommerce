@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FIXED_ROUNDING_CASES, PERCENTAGE_ROUNDING_CASES } from '../../test-support/rounding-cases';
 import { computeTotals, discountCents, subtotalCents } from './cart.pricing';
 
 describe('subtotalCents', () => {
@@ -89,5 +90,28 @@ describe('computeTotals', () => {
       discountCents: 0,
       totalCents: 0,
     });
+  });
+});
+
+describe('discountCents boundary tables (RN-015)', () => {
+  it.each(PERCENTAGE_ROUNDING_CASES)('percentage: $name', (c) => {
+    expect(discountCents({ type: 'percentage', value: c.percent }, c.subtotalCents)).toBe(
+      c.expectedDiscountCents,
+    );
+  });
+
+  it.each(FIXED_ROUNDING_CASES)('fixed: $name', (c) => {
+    expect(discountCents({ type: 'fixed', value: c.valueCents }, c.subtotalCents)).toBe(
+      c.expectedDiscountCents,
+    );
+  });
+
+  it.each(PERCENTAGE_ROUNDING_CASES)('total is never negative: $name', (c) => {
+    const totals = computeTotals([{ unitPriceCents: c.subtotalCents, quantity: 1 }], {
+      type: 'percentage',
+      value: c.percent,
+    });
+    expect(totals.totalCents).toBe(c.subtotalCents - c.expectedDiscountCents);
+    expect(totals.totalCents).toBeGreaterThanOrEqual(0);
   });
 });

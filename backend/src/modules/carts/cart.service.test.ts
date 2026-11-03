@@ -604,6 +604,42 @@ describe('CartService.confirm', () => {
     expect(result.cart.status).toBe('order_created');
   });
 
+  it('orders the lines at the frozen price, not at the current product price (RN-004)', async () => {
+    const { repos, service } = checkoutScenario({ items: [line(2, 1000)] });
+    repos.products.lockByIds.mockResolvedValue([product({ id: 5, priceCents: 9999 })]);
+
+    await service.confirm(1);
+
+    expect(repos.orders.create).toHaveBeenCalledWith(
+      expect.objectContaining({ subtotalCents: 2000, totalCents: 2000 }),
+      [{ productId: 5, quantity: 2, unitPriceCents: 1000 }],
+    );
+  });
+
+  it('floors a fractional percentage discount before creating the order (RN-015)', async () => {
+    const { repos, service } = checkoutScenario({ couponId: 9, items: [line(1, 99)] });
+    repos.coupons.lockById.mockResolvedValue(coupon({ type: 'percentage', value: 15 }));
+
+    await service.confirm(1);
+
+    expect(repos.orders.create).toHaveBeenCalledWith(
+      expect.objectContaining({ subtotalCents: 99, discountCents: 14, totalCents: 85 }),
+      expect.anything(),
+    );
+  });
+
+  it('neither decrements stock nor consumes the coupon when order creation fails (RN-021)', async () => {
+    const { repos, service } = checkoutScenario({ couponId: 9 });
+    repos.coupons.lockById.mockResolvedValue(coupon());
+    repos.orders.create.mockRejectedValue(new Error('db down'));
+
+    await expect(service.confirm(1)).rejects.toThrow('db down');
+
+    expect(repos.products.decrementStock).not.toHaveBeenCalled();
+    expect(repos.coupons.markUsed).not.toHaveBeenCalled();
+    expect(repos.carts.setStatus).not.toHaveBeenCalled();
+  });
+
   it('applies the coupon discount and marks it used only on success (RN-013)', async () => {
     const { repos, service } = checkoutScenario({ couponId: 9 });
     repos.coupons.lockById.mockResolvedValue(coupon());
