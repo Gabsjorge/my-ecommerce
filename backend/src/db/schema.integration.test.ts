@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { cartItems, carts, coupons, orders } from './schema';
+import { cartItems, carts, coupons, orderItems, orders } from './schema';
 import { createCleanup } from '../test-support/cleanup';
 import { createCart, createCoupon, createProduct } from '../test-support/factories';
 import { createTestApp } from '../test-support/app';
@@ -154,5 +154,73 @@ describe('order schema constraints (integration)', () => {
     expect(
       await constraintOf(db.insert(orders).values(order(cart.id, { status: 'shipped' }))),
     ).toBe('orders_status_valid');
+  });
+});
+
+describe('order money and order_items constraints (integration)', () => {
+  const order = (cartId: number, overrides: Partial<typeof orders.$inferInsert> = {}) => ({
+    cartId,
+    subtotalCents: 1000,
+    discountCents: 100,
+    totalCents: 900,
+    ...overrides,
+  });
+
+  it.each([
+    [
+      'negative subtotal',
+      { subtotalCents: -100, discountCents: 0, totalCents: -100 },
+      'orders_subtotal_cents_nonneg',
+    ],
+    [
+      'negative discount',
+      { subtotalCents: 1000, discountCents: -100, totalCents: 1100 },
+      'orders_discount_cents_nonneg',
+    ],
+    [
+      'negative total',
+      { subtotalCents: 100, discountCents: 200, totalCents: -100 },
+      'orders_total_cents_nonneg',
+    ],
+  ])('rejects an order with %s', async (_name, values, constraint) => {
+    const cart = await createCart(db, cleanup);
+    expect(await constraintOf(db.insert(orders).values(order(cart.id, values)))).toBe(constraint);
+  });
+
+  it('accepts a zero total from a 100% discount', async () => {
+    const cart = await createCart(db, cleanup);
+    await db
+      .insert(orders)
+      .values(order(cart.id, { subtotalCents: 8990, discountCents: 8990, totalCents: 0 }));
+  });
+
+  async function orderWithProduct() {
+    const cart = await createCart(db, cleanup);
+    const product = await createProduct(db, cleanup);
+    const [row] = await db.insert(orders).values(order(cart.id)).returning();
+    return { orderId: row.id, productId: product.id };
+  }
+
+  it('rejects an order item with quantity 0', async () => {
+    const { orderId, productId } = await orderWithProduct();
+    expect(
+      await constraintOf(
+        db.insert(orderItems).values({ orderId, productId, quantity: 0, unitPriceCents: 1000 }),
+      ),
+    ).toBe('order_items_quantity_min');
+  });
+
+  it('rejects an order item with a negative unit price', async () => {
+    const { orderId, productId } = await orderWithProduct();
+    expect(
+      await constraintOf(
+        db.insert(orderItems).values({ orderId, productId, quantity: 1, unitPriceCents: -1 }),
+      ),
+    ).toBe('order_items_unit_price_cents_nonneg');
+  });
+
+  it('accepts a free item (unit price 0)', async () => {
+    const { orderId, productId } = await orderWithProduct();
+    await db.insert(orderItems).values({ orderId, productId, quantity: 1, unitPriceCents: 0 });
   });
 });

@@ -516,3 +516,66 @@ describe('unexpected failures', () => {
     spy.mockRestore();
   });
 });
+
+describe('item route input validation (hardening)', () => {
+  it.each([
+    ['string', '2'],
+    ['decimal', 1.5],
+    ['zero', 0],
+    ['negative', -1],
+    ['null', null],
+    ['above int32', 2147483648],
+  ])(
+    'PATCH rejects a %s quantity with 400 and leaves the line untouched',
+    async (_name, quantity) => {
+      const { cartId, product } = await cartWithItem(2);
+
+      const res = await request(app)
+        .patch(`/api/carts/${cartId}/items/${product.id}`)
+        .send({ quantity });
+
+      expectError(res, 400, 'VALIDATION_ERROR');
+      const cart = await request(app).get(`/api/carts/${cartId}`);
+      expect(cart.body.items[0].quantity).toBe(2);
+    },
+  );
+
+  it.each(['-1', '0', '1.5', 'abc', '2147483648'])(
+    'DELETE rejects productId %s in the path with 400',
+    async (productId) => {
+      const { cartId } = await cartWithItem(1);
+      expectError(
+        await request(app).delete(`/api/carts/${cartId}/items/${productId}`),
+        400,
+        'VALIDATION_ERROR',
+      );
+    },
+  );
+});
+
+describe('percentage coupon with minimum order over HTTP (RN-015, RN-017)', () => {
+  it('applies the seeded MIN200 coupon at the minimum and floors the 15% discount', async () => {
+    // 2 x 10001 = 20002 cents: above the 20000 minimum, and 15% = 3000.3 -> 3000.
+    const { cartId } = await cartWithItem(2, { priceCents: 10001 });
+
+    const res = await request(app).post(`/api/carts/${cartId}/coupon`).send({ code: ' min200 ' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      subtotalCents: 20002,
+      discountCents: 3000,
+      totalCents: 17002,
+      coupon: { code: 'MIN200' },
+    });
+  });
+
+  it('refuses MIN200 one cent below the minimum', async () => {
+    const { cartId } = await cartWithItem(1, { priceCents: 19999 });
+
+    expectError(
+      await request(app).post(`/api/carts/${cartId}/coupon`).send({ code: 'MIN200' }),
+      422,
+      'COUPON_MIN_ORDER_NOT_MET',
+    );
+  });
+});

@@ -46,6 +46,37 @@ describe('CouponRepository.lockById (integration)', () => {
     expect(locked?.code).toBe(created.code);
   });
 
+  it('blocks a second transaction until the first one commits (RN-013)', async () => {
+    const created = await createCoupon(db, cleanup);
+    const events: string[] = [];
+    let releaseFirst!: () => void;
+    const firstMayCommit = new Promise<void>((resolve) => (releaseFirst = resolve));
+    let firstHasLock!: () => void;
+    const firstLocked = new Promise<void>((resolve) => (firstHasLock = resolve));
+
+    const first = db.transaction(async (tx) => {
+      await new CouponRepository(tx).lockById(created.id);
+      events.push('first locked');
+      firstHasLock();
+      await firstMayCommit;
+      events.push('first commit');
+    });
+
+    await firstLocked;
+    const second = db.transaction(async (tx) => {
+      await new CouponRepository(tx).lockById(created.id);
+      events.push('second locked');
+    });
+
+    // The second transaction must still be waiting for the row lock.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(events).toEqual(['first locked']);
+
+    releaseFirst();
+    await Promise.all([first, second]);
+    expect(events).toEqual(['first locked', 'first commit', 'second locked']);
+  });
+
   it('returns null for an unknown id', async () => {
     const locked = await db.transaction((tx) => new CouponRepository(tx).lockById(2147483647));
     expect(locked).toBeNull();
