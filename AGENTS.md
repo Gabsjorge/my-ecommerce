@@ -62,7 +62,7 @@ Onde cada código vive:
 - Listagem: `{ "data": [...], "total": n }`, sem paginação, ordenada por `id`.
 - Recurso único (carrinho, pedido): objeto simples, sem envelope `data`. Rotas do carrinho em `/api/carts`.
 - Erros: `{ "error": { "code": "NOT_FOUND", "message": "...", "details"? } }` com o status HTTP correto; `details` é opcional (ex.: `INSUFFICIENT_STOCK` na confirmação lista `details.items`). Erros de negócio estendem `AppError`. Erros inesperados retornam `500 INTERNAL_ERROR` sem detalhes.
-- Status por código: `VALIDATION_ERROR` 400 (413 para corpo grande); `CART_NOT_FOUND`, `PRODUCT_NOT_FOUND`, `CART_ITEM_NOT_FOUND`, `COUPON_NOT_FOUND` 404; `INVALID_CART_STATE`, `INSUFFICIENT_STOCK`, `COUPON_ALREADY_APPLIED`, `COUPON_NOT_APPLIED` 409; `COUPON_EXPIRED`, `COUPON_ALREADY_USED`, `COUPON_MIN_ORDER_NOT_MET` 422; `INTERNAL_ERROR` 500.
+- Status por código: `VALIDATION_ERROR` 400 (413 para corpo grande); `CART_NOT_FOUND`, `PRODUCT_NOT_FOUND`, `CART_ITEM_NOT_FOUND`, `COUPON_NOT_FOUND` 404; `INVALID_CART_STATE`, `INSUFFICIENT_STOCK`, `COUPON_ALREADY_APPLIED`, `COUPON_NOT_APPLIED` 409; `COUPON_EXPIRED`, `COUPON_ALREADY_USED`, `COUPON_MIN_ORDER_NOT_MET` 422; `RATE_LIMITED` 429 (limite por IP em `/api`, configurável por env); `INTERNAL_ERROR` 500.
 - Campos em `camelCase`. **Preço sempre em centavos, inteiro** (`priceCents`). O frontend formata na camada `domain/`.
 - `id` é inteiro serial.
 
