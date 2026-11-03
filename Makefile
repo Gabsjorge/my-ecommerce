@@ -6,7 +6,7 @@ PACKAGES = backend frontend e2e
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install up down clean logs migrate seed test test-backend test-frontend test-e2e \
+.PHONY: help install up down clean logs migrate seed seed-volume test test-backend test-frontend test-e2e \
 	test-env-up test-env-down test-env-reset test-e2e-local lint format check
 
 help: ## List the available targets
@@ -34,6 +34,9 @@ migrate: ## Run migrations manually in dev
 
 seed: ## Run the seed manually in dev
 	$(COMPOSE_DEV) run --rm migrate sh -c "npm run db:seed"
+
+seed-volume: ## Load the high-volume synthetic dataset in dev (opt-in, idempotent)
+	$(COMPOSE_DEV) run --rm migrate sh -c "npm run db:seed:volume"
 
 test: test-backend test-frontend test-e2e ## Full suite (Docker only)
 

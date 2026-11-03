@@ -121,6 +121,7 @@ make clean       # derruba e apaga o volume do banco
 make logs        # logs do dev (SERVICE=backend opcional)
 make migrate     # roda migrations manualmente
 make seed        # roda o seed manualmente
+make seed-volume # massa volumosa opcional, só dev (ver docs/seeds-report.md)
 ```
 
 Qualidade e testes:
