@@ -31,6 +31,8 @@ let cart = null;
 let lastOrder = null;
 /** Discards the result of a stale async render when the route changes meanwhile. */
 let renderToken = 0;
+/** True while a cart write is pending; see runExclusive. */
+let actionInFlight = false;
 
 /** @param {string | null} message */
 function showNotice(message) {
@@ -145,14 +147,26 @@ function applyCart(updated) {
   renderCurrent();
 }
 
-/** @param {() => Promise<CartView>} action */
-async function runCartAction(action) {
-  if (cartId === null) return;
+/**
+ * Runs one cart write at a time: a second click while a request is in flight is ignored,
+ * so a double click cannot turn a success into an INVALID_CART_STATE notice (RF-014).
+ * @param {() => Promise<void>} work
+ */
+async function runExclusive(work) {
+  if (cartId === null || actionInFlight) return;
+  actionInFlight = true;
   try {
-    applyCart(await action());
+    await work();
   } catch (err) {
     await handleError(err);
+  } finally {
+    actionInFlight = false;
   }
+}
+
+/** @param {() => Promise<CartView>} action */
+function runCartAction(action) {
+  return runExclusive(async () => applyCart(await action()));
 }
 
 /**
@@ -170,15 +184,12 @@ async function updateQuantity(productId, text) {
   await runCartAction(() => cartsApi.updateItemQuantity(cartId ?? 0, productId, quantity));
 }
 
-async function confirm() {
-  if (cartId === null) return;
-  try {
-    const result = await cartsApi.confirmCart(cartId);
+function confirm() {
+  return runExclusive(async () => {
+    const result = await cartsApi.confirmCart(cartId ?? 0);
     lastOrder = result.order;
     applyCart(result.cart);
-  } catch (err) {
-    await handleError(err);
-  }
+  });
 }
 
 /**

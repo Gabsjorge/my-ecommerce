@@ -102,6 +102,11 @@ export function renderCart(root, cart, handlers) {
   if (!cart || cart.items.length === 0) {
     const empty = element('div', null);
     empty.append(element('p', 'cart-empty', 'Seu carrinho está vazio.'));
+    const link = /** @type {HTMLAnchorElement} */ (
+      element('a', 'cart-empty-products-link', 'Ver produtos')
+    );
+    link.href = '#/';
+    empty.append(link);
     if (cart) {
       empty.prepend(summaryLine('cart-status', 'Estado', statusLabel(cart.status)));
     }
