@@ -7,7 +7,8 @@ export class HealthController {
     try {
       await this.checkDb();
       res.status(200).json({ status: 'ok' });
-    } catch {
+    } catch (error) {
+      console.error('Health check failed:', error);
       res.status(503).json({ status: 'unavailable' });
     }
   };

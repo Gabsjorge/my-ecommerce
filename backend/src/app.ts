@@ -1,4 +1,5 @@
 import express from 'express';
+import { DEFAULT_CART_INACTIVITY_TIMEOUT_SECONDS } from './config/env';
 import { pingDb, type Database } from './db/client';
 import { errorHandler, notFoundHandler } from './shared/error-handler.middleware';
 import { CartController } from './modules/carts/cart.controller';
@@ -18,7 +19,7 @@ export interface AppDeps {
   db: Database;
   // Injectable for tests; defaults to the system clock.
   clock?: Clock;
-  // Defaults to 600 s (same default as the env schema).
+  // Defaults to the env schema default.
   cartInactivityTimeoutSeconds?: number;
 }
 
@@ -26,7 +27,7 @@ export interface AppDeps {
 export function createApp({
   db,
   clock = () => new Date(),
-  cartInactivityTimeoutSeconds = 600,
+  cartInactivityTimeoutSeconds = DEFAULT_CART_INACTIVITY_TIMEOUT_SECONDS,
 }: AppDeps): express.Express {
   const app = express();
   app.disable('x-powered-by');

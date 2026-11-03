@@ -57,6 +57,15 @@ describe('errorHandler', () => {
     });
   });
 
+  it('delegates to Express when headers were already sent', () => {
+    const next = vi.fn();
+    const res = { headersSent: true, status: vi.fn(), json: vi.fn() };
+    const err = new Error('late failure');
+    errorHandler(err, {} as Request, res as unknown as Response, next as unknown as NextFunction);
+    expect(next).toHaveBeenCalledWith(err);
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
   it('serializes NotFoundError as 404', () => {
     const res = handle(new NotFoundError('nope'));
     expect(res.statusCode).toBe(404);

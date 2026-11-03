@@ -14,7 +14,12 @@ function bodyParserStatus(err: unknown): 400 | 413 | undefined {
 }
 
 // Express recognizes error handlers by their 4 arguments.
-export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
+  // Headers already sent: let Express close the connection instead of writing twice.
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
   if (err instanceof AppError) {
     const body: { code: string; message: string; details?: unknown } = {
       code: err.code,

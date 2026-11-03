@@ -1,10 +1,16 @@
 import { z } from 'zod';
 
+export const DEFAULT_CART_INACTIVITY_TIMEOUT_SECONDS = 600;
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   BACKEND_PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z.string().url(),
-  CART_INACTIVITY_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(600),
+  CART_INACTIVITY_TIMEOUT_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(DEFAULT_CART_INACTIVITY_TIMEOUT_SECONDS),
 });
 
 export type Env = z.infer<typeof envSchema>;

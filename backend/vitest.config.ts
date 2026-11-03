@@ -15,6 +15,7 @@ export default defineConfig({
           name: 'integration',
           include: ['src/**/*.integration.test.ts'],
           // Files share one database; running them serially (single fork) keeps count asserts stable.
+          // `fileParallelism` is not accepted per project in Vitest 3; revisit on a major upgrade.
           pool: 'forks',
           poolOptions: { forks: { singleFork: true } },
         },
