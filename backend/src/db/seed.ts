@@ -186,8 +186,18 @@ export async function runSeed(db: Database): Promise<SeedResult> {
   });
 }
 
+export function isSeedAllowed(nodeEnv: string): boolean {
+  return nodeEnv !== 'production';
+}
+
 async function main(): Promise<void> {
   const env = loadEnv();
+  // The demo data includes 100%-off coupons valid until 2099: never load it in production.
+  // Exits successfully so `migrate && seed` in the base Compose file still completes.
+  if (!isSeedAllowed(env.NODE_ENV)) {
+    console.log(`Seed skipped: demo data is not loaded with NODE_ENV=${env.NODE_ENV}`);
+    return;
+  }
   const pool = createPool(env.DATABASE_URL);
   try {
     const result = await runSeed(createDb(pool));

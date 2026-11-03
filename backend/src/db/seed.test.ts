@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { seedCoupons, seedProducts } from './seed';
+import { isSeedAllowed, seedCoupons, seedProducts } from './seed';
 
 describe('seedProducts', () => {
   it('has 17 products', () => {
@@ -95,5 +95,16 @@ describe('seedCoupons', () => {
   it('keeps the fixed coupon above any test subtotal', () => {
     expect(byCode('FIXO5000')).toMatchObject({ type: 'fixed', value: 500000 });
     expect(byCode('MEGA100')).toMatchObject({ type: 'percentage', value: 100 });
+  });
+});
+
+describe('isSeedAllowed', () => {
+  it('refuses production, where the 100%-off demo coupons would be exploitable', () => {
+    expect(isSeedAllowed('production')).toBe(false);
+  });
+
+  it('allows development and test', () => {
+    expect(isSeedAllowed('development')).toBe(true);
+    expect(isSeedAllowed('test')).toBe(true);
   });
 });
