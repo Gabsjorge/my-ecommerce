@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 export const DEFAULT_CART_INACTIVITY_TIMEOUT_SECONDS = 600;
+export const DEFAULT_RATE_LIMIT_MAX_PER_MINUTE = 300;
+export const DEFAULT_RATE_LIMIT_SENSITIVE_MAX_PER_MINUTE = 30;
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -11,6 +13,17 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(DEFAULT_CART_INACTIVITY_TIMEOUT_SECONDS),
+  // Requests per minute and client IP: all /api routes, and cart creation / coupon attempts.
+  RATE_LIMIT_MAX_PER_MINUTE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(DEFAULT_RATE_LIMIT_MAX_PER_MINUTE),
+  RATE_LIMIT_SENSITIVE_MAX_PER_MINUTE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(DEFAULT_RATE_LIMIT_SENSITIVE_MAX_PER_MINUTE),
 });
 
 export type Env = z.infer<typeof envSchema>;

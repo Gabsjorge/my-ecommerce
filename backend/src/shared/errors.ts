@@ -21,3 +21,9 @@ export class ValidationError extends AppError {
     super('VALIDATION_ERROR', message, 400, details);
   }
 }
+
+export class RateLimitedError extends AppError {
+  constructor(message = 'Too many requests, try again later') {
+    super('RATE_LIMITED', message, 429);
+  }
+}

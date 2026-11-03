@@ -4,7 +4,12 @@ import { Pool } from 'pg';
 import * as schema from './schema';
 
 export function createPool(databaseUrl: string): Pool {
-  return new Pool({ connectionString: databaseUrl });
+  return new Pool({
+    connectionString: databaseUrl,
+    // Aborts runaway queries and idle-in-transaction sessions instead of holding locks.
+    statement_timeout: 15_000,
+    idle_in_transaction_session_timeout: 30_000,
+  });
 }
 
 export function createDb(pool: Pool) {

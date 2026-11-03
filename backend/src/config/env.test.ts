@@ -15,7 +15,20 @@ describe('parseEnv', () => {
       BACKEND_PORT: 3000,
       DATABASE_URL: 'postgres://user:pass@localhost:5432/db',
       CART_INACTIVITY_TIMEOUT_SECONDS: 600,
+      RATE_LIMIT_MAX_PER_MINUTE: 300,
+      RATE_LIMIT_SENSITIVE_MAX_PER_MINUTE: 30,
     });
+  });
+
+  it('accepts custom rate limits and rejects non-positive ones', () => {
+    const env = parseEnv({
+      ...validEnv,
+      RATE_LIMIT_MAX_PER_MINUTE: '1000',
+      RATE_LIMIT_SENSITIVE_MAX_PER_MINUTE: '5',
+    });
+    expect(env.RATE_LIMIT_MAX_PER_MINUTE).toBe(1000);
+    expect(env.RATE_LIMIT_SENSITIVE_MAX_PER_MINUTE).toBe(5);
+    expect(() => parseEnv({ ...validEnv, RATE_LIMIT_MAX_PER_MINUTE: '0' })).toThrow();
   });
 
   it('defaults CART_INACTIVITY_TIMEOUT_SECONDS to 600', () => {
