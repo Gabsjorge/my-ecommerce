@@ -9,12 +9,12 @@ interface ApiProduct {
 }
 
 test.describe('GET /api/products', () => {
-  test('returns the envelope with 10 products', async ({ request }) => {
+  test('returns the envelope with 17 products', async ({ request }) => {
     const res = await request.get('/api/products');
     expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(body.total).toBe(10);
-    expect(body.data).toHaveLength(10);
+    expect(body.total).toBe(17);
+    expect(body.data).toHaveLength(17);
   });
 
   test('each item has the expected fields and types', async ({ request }) => {

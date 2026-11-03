@@ -10,6 +10,14 @@ export const PRODUCT_NAMES = {
   outOfStock: 'Caderno Universitário 200 folhas',
   regular: 'Camiseta Básica Algodão',
   uiLastUnit: 'Agenda Anual Última Unidade (UI)',
+  // Dedicated to the flow specs: each is touched by a single spec file, so stock can be asserted exactly.
+  flowAlfa: 'Kit Fluxo Alfa (E2E Endpoint)',
+  flowBeta: 'Kit Fluxo Beta (E2E Endpoint)',
+  uiFlowAlfa: 'Kit Fluxo Alfa (E2E UI)',
+  uiFlowBeta: 'Kit Fluxo Beta (E2E UI)',
+  flowLast1: 'Fluxo Último Item 1 (Estoque 1)',
+  flowLast2: 'Fluxo Último Item 2 (Estoque 1)',
+  uiFlowLast: 'Fluxo Último Item 3 (UI, Estoque 1)',
 } as const;
 
 export const COUPON_CODES = {
@@ -26,6 +34,14 @@ export const COUPON_CODES = {
   uiConsumable: 'UI-CONFIRMA10',
   uiConsumableFixed: 'UI-ZERA-FIXO',
   uiDispute: 'UI-DISPUTA10',
+  flowPct: 'FLUXO-PCT',
+  flowFixed: 'FLUXO-FIXO',
+  flowStock: 'FLUXO-F5',
+  flowAbandon: 'FLUXO-F6',
+  flowRace: 'FLUXO-F9',
+  uiFlowPurchase: 'UI-FLUXO-U1',
+  uiFlowStock: 'UI-FLUXO-U3',
+  uiFlowReload: 'UI-FLUXO-U4',
 } as const;
 
 export type CartStatus = 'empty' | 'with_items' | 'in_checkout' | 'order_created' | 'abandoned';

@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { products } from '../../db/schema';
+import { seedProducts } from '../../db/seed';
 import { createTestApp } from '../../test-support/app';
 import { createCleanup } from '../../test-support/cleanup';
 import { createProduct } from '../../test-support/factories';
@@ -14,9 +15,9 @@ afterEach(() => cleanup.run(db));
 afterAll(() => close());
 
 describe('ProductRepository.findAll (integration)', () => {
-  it('returns the 10 seeded products ordered by id', async () => {
+  it('returns the seeded products ordered by id', async () => {
     const found = await repository.findAll();
-    expect(found).toHaveLength(10);
+    expect(found).toHaveLength(seedProducts.length);
     const ids = found.map((p) => p.id);
     expect(ids).toEqual([...ids].sort((a, b) => a - b));
   });

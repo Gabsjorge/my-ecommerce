@@ -8,10 +8,10 @@ interface ApiProduct {
 }
 
 test.describe('product list page', () => {
-  test('shows the 10 products with the first name visible', async ({ page }) => {
+  test('shows the 17 products with the first name visible', async ({ page }) => {
     await page.goto('/');
     const items = page.getByTestId('product-item');
-    await expect(items).toHaveCount(10);
+    await expect(items).toHaveCount(17);
     await expect(items.first().getByTestId('product-name')).toHaveText('Camiseta Básica Algodão');
   });
 
@@ -30,7 +30,7 @@ test.describe('product list page', () => {
     expect(expectedNames).toContain('Caderno Universitário 200 folhas');
 
     await page.goto('/');
-    await expect(page.getByTestId('product-item')).toHaveCount(10);
+    await expect(page.getByTestId('product-item')).toHaveCount(17);
     const badges = page.getByTestId('out-of-stock-badge');
     await expect(badges).toHaveCount(expectedNames.length);
     for (const badge of await badges.all()) await expect(badge).toHaveText('Sem estoque');

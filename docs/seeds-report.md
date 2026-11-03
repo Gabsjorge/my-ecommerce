@@ -43,7 +43,7 @@
 - Geração pura (sem banco): [backend/src/db/seed-volume.data.ts](../backend/src/db/seed-volume.data.ts)
 - Persistência (transação, lotes de 500): [backend/src/db/seed-volume.ts](../backend/src/db/seed-volume.ts)
 - Testes unitários dos invariantes: [backend/src/db/seed-volume.data.test.ts](../backend/src/db/seed-volume.data.test.ts)
-- Seed original (10 produtos e 13 cupons do E2E) permanece intacto e **não** inclui a massa volumosa.
+- Seed original (17 produtos e 21 cupons do E2E) permanece intacto e **não** inclui a massa volumosa.
 - Execução (somente desenvolvimento; recusa `NODE_ENV` diferente de `development`):
 
 ```bash
@@ -54,7 +54,7 @@ make seed-volume   # carrega a massa volumosa (idempotente)
 
 - Ordem de inserção: products → coupons → carts → cart_items → orders → order_items.
 - Reexecução: se existir algum cupom `VOL-%`, o seed é ignorado. Para recarregar: `make clean && make up && make seed-volume`.
-- A massa **não** entra nos compose nem no ambiente de teste: o E2E espera exatamente 10 produtos.
+- A massa **não** entra nos compose nem no ambiente de teste: o E2E espera exatamente 17 produtos.
 
 ## Verificação
 

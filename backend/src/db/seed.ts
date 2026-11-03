@@ -4,7 +4,7 @@ import { createDb, createPool, type Database } from './client';
 import { coupons, products, type NewCoupon, type NewProduct } from './schema';
 
 // Fixed dataset shared by dev and test (E2E asserts rely on it). The 'Caderno Universitário' product is out of stock.
-// The last 4 products are dedicated to cart tests: tests find them by name, never by id.
+// The products after the first 6 are dedicated to cart tests (the last 7 to the flow specs): tests find them by name, never by id.
 export const seedProducts: NewProduct[] = [
   {
     name: 'Camiseta Básica Algodão',
@@ -67,11 +67,54 @@ export const seedProducts: NewProduct[] = [
     priceCents: 2500,
     stock: 1,
   },
+  {
+    name: 'Kit Fluxo Alfa (E2E Endpoint)',
+    description: 'Produto dedicado aos fluxos E2E de endpoint, com estoque medido de forma exata.',
+    priceCents: 5000,
+    stock: 200,
+  },
+  {
+    name: 'Kit Fluxo Beta (E2E Endpoint)',
+    description: 'Segundo produto dedicado aos fluxos E2E de endpoint.',
+    priceCents: 15000,
+    stock: 200,
+  },
+  {
+    name: 'Kit Fluxo Alfa (E2E UI)',
+    description: 'Produto dedicado aos fluxos E2E de interface, com estoque medido de forma exata.',
+    priceCents: 4000,
+    stock: 200,
+  },
+  {
+    name: 'Kit Fluxo Beta (E2E UI)',
+    description: 'Segundo produto dedicado aos fluxos E2E de interface.',
+    priceCents: 6000,
+    stock: 200,
+  },
+  {
+    name: 'Fluxo Último Item 1 (Estoque 1)',
+    description: 'Única unidade em estoque, consumida por um fluxo E2E de endpoint.',
+    priceCents: 2000,
+    stock: 1,
+  },
+  {
+    name: 'Fluxo Último Item 2 (Estoque 1)',
+    description: 'Única unidade em estoque, consumida por um fluxo E2E de endpoint.',
+    priceCents: 2000,
+    stock: 1,
+  },
+  {
+    name: 'Fluxo Último Item 3 (UI, Estoque 1)',
+    description: 'Única unidade em estoque, consumida por um fluxo E2E de interface.',
+    priceCents: 2000,
+    stock: 1,
+  },
 ];
 
 const FAR_FUTURE = new Date('2099-12-31T23:59:59Z');
 
 // Codes are stored normalized (upper case). 'consumable' coupons are used up by a single test.
+// FLUXO-* / UI-FLUXO-* are dedicated to the end-to-end flow specs (one confirmation each at most).
 export const seedCoupons: NewCoupon[] = [
   { code: 'DESC10', type: 'percentage', value: 10, minOrderCents: 0, expiresAt: FAR_FUTURE },
   { code: 'FIXO20', type: 'fixed', value: 2000, minOrderCents: 0, expiresAt: FAR_FUTURE },
@@ -99,6 +142,14 @@ export const seedCoupons: NewCoupon[] = [
   { code: 'UI-CONFIRMA10', type: 'percentage', value: 10, minOrderCents: 0, expiresAt: FAR_FUTURE },
   { code: 'UI-ZERA-FIXO', type: 'fixed', value: 500000, minOrderCents: 0, expiresAt: FAR_FUTURE },
   { code: 'UI-DISPUTA10', type: 'percentage', value: 10, minOrderCents: 0, expiresAt: FAR_FUTURE },
+  { code: 'FLUXO-PCT', type: 'percentage', value: 10, minOrderCents: 0, expiresAt: FAR_FUTURE },
+  { code: 'FLUXO-F5', type: 'percentage', value: 10, minOrderCents: 0, expiresAt: FAR_FUTURE },
+  { code: 'FLUXO-F6', type: 'percentage', value: 10, minOrderCents: 0, expiresAt: FAR_FUTURE },
+  { code: 'FLUXO-F9', type: 'percentage', value: 10, minOrderCents: 0, expiresAt: FAR_FUTURE },
+  { code: 'UI-FLUXO-U1', type: 'percentage', value: 10, minOrderCents: 0, expiresAt: FAR_FUTURE },
+  { code: 'UI-FLUXO-U3', type: 'percentage', value: 10, minOrderCents: 0, expiresAt: FAR_FUTURE },
+  { code: 'UI-FLUXO-U4', type: 'percentage', value: 10, minOrderCents: 0, expiresAt: FAR_FUTURE },
+  { code: 'FLUXO-FIXO', type: 'fixed', value: 2000, minOrderCents: 0, expiresAt: FAR_FUTURE },
 ];
 
 export interface SeedResult {

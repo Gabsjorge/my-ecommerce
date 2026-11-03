@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { seedCoupons, seedProducts } from './seed';
 
 describe('seedProducts', () => {
-  it('has 10 products', () => {
-    expect(seedProducts).toHaveLength(10);
+  it('has 17 products', () => {
+    expect(seedProducts).toHaveLength(17);
   });
 
   it('has non-negative integer priceCents and stock', () => {
@@ -53,8 +53,8 @@ describe('seedProducts', () => {
 describe('seedCoupons', () => {
   const byCode = (code: string) => seedCoupons.find((c) => c.code === code);
 
-  it('has 13 coupons with unique, normalized codes (RN-014)', () => {
-    expect(seedCoupons).toHaveLength(13);
+  it('has 21 coupons with unique, normalized codes (RN-014)', () => {
+    expect(seedCoupons).toHaveLength(21);
     const codes = seedCoupons.map((c) => c.code);
     expect(new Set(codes).size).toBe(codes.length);
     for (const code of codes) expect(code).toMatch(/^[A-Z0-9_-]{3,30}$/);
