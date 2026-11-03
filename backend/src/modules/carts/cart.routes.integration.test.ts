@@ -449,6 +449,54 @@ describe('POST /api/carts/:cartId/confirm', () => {
   });
 });
 
+describe('POST /api/carts/:cartId/confirm: coupon and cart failures', () => {
+  it('returns 404 CART_NOT_FOUND for an unknown cart', async () => {
+    expectError(await request(app).post(`/api/carts/${MISSING}/confirm`), 404, 'CART_NOT_FOUND');
+  });
+
+  it('returns 422 COUPON_EXPIRED when the coupon expires between apply and confirm', async () => {
+    const { cartId, product } = await cartWithItem(2, { stock: 5 });
+    const coupon = await createCoupon(db, cleanup, {
+      expiresAt: new Date(START.getTime() + 5_000),
+    });
+    expect(
+      (await request(app).post(`/api/carts/${cartId}/coupon`).send({ code: coupon.code })).status,
+    ).toBe(200);
+    await request(app).post(`/api/carts/${cartId}/checkout`);
+    now = new Date(START.getTime() + 6_000);
+
+    expectError(await request(app).post(`/api/carts/${cartId}/confirm`), 422, 'COUPON_EXPIRED');
+
+    expect((await request(app).get(`/api/carts/${cartId}`)).body.status).toBe('in_checkout');
+    const [row] = await db.select().from(products).where(eq(products.id, product.id));
+    expect(row.stock).toBe(5);
+  });
+
+  it('returns 422 COUPON_MIN_ORDER_NOT_MET when the subtotal fell below the minimum (RN-016)', async () => {
+    const { cartId, product } = await cartWithItem(6, { stock: 10 });
+    const coupon = await createCoupon(db, cleanup, { minOrderCents: 5000 });
+    expect(
+      (await request(app).post(`/api/carts/${cartId}/coupon`).send({ code: coupon.code })).status,
+    ).toBe(200);
+    const lowered = await request(app)
+      .patch(`/api/carts/${cartId}/items/${product.id}`)
+      .send({ quantity: 2 });
+    expect(lowered.status).toBe(200);
+    expect(lowered.body.coupon.code).toBe(coupon.code);
+    await request(app).post(`/api/carts/${cartId}/checkout`);
+
+    expectError(
+      await request(app).post(`/api/carts/${cartId}/confirm`),
+      422,
+      'COUPON_MIN_ORDER_NOT_MET',
+    );
+
+    expect((await request(app).get(`/api/carts/${cartId}`)).body.status).toBe('in_checkout');
+    const [row] = await db.select().from(products).where(eq(products.id, product.id));
+    expect(row.stock).toBe(10);
+  });
+});
+
 describe('unexpected failures', () => {
   it('returns 500 INTERNAL_ERROR without details', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
