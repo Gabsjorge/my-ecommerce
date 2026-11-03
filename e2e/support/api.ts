@@ -25,6 +25,7 @@ export const COUPON_CODES = {
   dispute: 'DISPUTA10',
   uiConsumable: 'UI-CONFIRMA10',
   uiConsumableFixed: 'UI-ZERA-FIXO',
+  uiDispute: 'UI-DISPUTA10',
 } as const;
 
 export type CartStatus = 'empty' | 'with_items' | 'in_checkout' | 'order_created' | 'abandoned';
