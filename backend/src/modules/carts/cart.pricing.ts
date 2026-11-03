@@ -14,6 +14,9 @@ export interface CartTotals {
   totalCents: number;
 }
 
+// Largest value the int32 total columns can hold; above it the order insert would fail with a 500.
+export const MAX_CART_SUBTOTAL_CENTS = 2_147_483_647;
+
 // Sum of frozen unit price times quantity (RN-004, RN-015).
 export function subtotalCents(lines: readonly PricedLine[]): number {
   return lines.reduce((sum, line) => sum + line.unitPriceCents * line.quantity, 0);

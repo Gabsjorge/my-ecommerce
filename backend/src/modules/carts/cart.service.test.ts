@@ -274,6 +274,36 @@ describe('CartService.addItem', () => {
   );
 });
 
+describe('CartService total limit', () => {
+  it('refuses an addition whose subtotal exceeds the int32 total column and writes nothing', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'empty' }));
+    repos.products.findById.mockResolvedValue(product({ priceCents: 2_000_000_000, stock: 1_000 }));
+    repos.carts.findItem.mockResolvedValue(null);
+    repos.carts.findDetails.mockResolvedValue(details());
+
+    await expect(service.addItem(1, 5, 2)).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+      status: 400,
+    });
+    expect(repos.carts.insertItem).not.toHaveBeenCalled();
+    expect(repos.carts.touch).not.toHaveBeenCalled();
+  });
+
+  it('refuses a quantity update whose subtotal exceeds the limit', async () => {
+    const { repos, service } = build();
+    repos.carts.lockById.mockResolvedValue(makeCart({ status: 'with_items' }));
+    repos.carts.findItem.mockResolvedValue(line(1, 2_000_000_000));
+    repos.products.findById.mockResolvedValue(product({ stock: 1_000 }));
+    repos.carts.findDetails.mockResolvedValue(details());
+
+    await expect(service.updateItemQuantity(1, 5, 2)).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+    expect(repos.carts.updateQuantity).not.toHaveBeenCalled();
+  });
+});
+
 describe('CartService.updateItemQuantity', () => {
   it('replaces the quantity (RF-004)', async () => {
     const { repos, service } = build();

@@ -1,4 +1,5 @@
-import { computeTotals, subtotalCents } from './cart.pricing';
+import { ValidationError } from '../../shared/errors';
+import { computeTotals, MAX_CART_SUBTOTAL_CENTS, subtotalCents } from './cart.pricing';
 import { CouponAlreadyUsedError, CouponNotAppliedError } from '../coupons/coupon.errors';
 import { revalidateOnConfirm, validateOnApply } from '../coupons/coupon.rules';
 import { ProductNotFoundError } from '../products/product.errors';
@@ -88,6 +89,14 @@ export class CartService {
         throw new InsufficientStockError([{ productId, requested, available: product.stock }]);
       }
 
+      await this.assertWithinTotalLimit(
+        repos,
+        cart.id,
+        productId,
+        requested,
+        line?.unitPriceCents ?? product.priceCents,
+      );
+
       if (line) await repos.carts.updateQuantity(cart.id, productId, requested);
       else await repos.carts.insertItem(cart.id, productId, quantity, product.priceCents);
       if (to !== cart.status) await repos.carts.setStatus(cart.id, to);
@@ -110,9 +119,27 @@ export class CartService {
         ]);
       }
 
+      await this.assertWithinTotalLimit(repos, cart.id, productId, quantity, line.unitPriceCents);
+
       await repos.carts.updateQuantity(cart.id, productId, quantity);
       return this.finishWrite(locked);
     });
+  }
+
+  // Keeps the subtotal inside the int32 total columns, so a huge cart is a 400 instead of a failed confirmation.
+  private async assertWithinTotalLimit(
+    repos: TxRepositories,
+    cartId: number,
+    productId: number,
+    quantity: number,
+    unitPriceCents: number,
+  ): Promise<void> {
+    const current = await repos.carts.findDetails(cartId);
+    const others = (current?.items ?? []).filter((item) => item.productId !== productId);
+    const subtotal = subtotalCents([...others, { unitPriceCents, quantity }]);
+    if (subtotal > MAX_CART_SUBTOTAL_CENTS) {
+      throw new ValidationError('Cart total exceeds the allowed maximum');
+    }
   }
 
   // RF-005: removing the last item empties the cart and drops the coupon (RN-016).
