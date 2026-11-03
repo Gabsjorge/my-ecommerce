@@ -10,7 +10,12 @@ const db = createDb(pool);
 const newProductNames = seedProducts.slice(6).map((p) => p.name);
 
 afterAll(async () => {
-  await pool.end();
+  // Restores the seed even if a test failed halfway, so later files still find DESC10/USADO10.
+  try {
+    await runSeed(db);
+  } finally {
+    await pool.end();
+  }
 });
 
 describe('runSeed (integration)', () => {
