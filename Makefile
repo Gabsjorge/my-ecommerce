@@ -18,6 +18,7 @@ install: ## npm ci in the root and in every package, and install the Husky hooks
 
 up: ## Create .env if missing and start the dev stack
 	test -f .env || cp .env.example .env
+	@grep -q '^POSTGRES_PASSWORD=change-me$$' .env && echo 'WARNING: .env still uses the example POSTGRES_PASSWORD (change-me); change it.' || true
 	$(COMPOSE_DEV) up --build -d --wait
 
 down: ## Stop the dev stack (keeps the database volume)
