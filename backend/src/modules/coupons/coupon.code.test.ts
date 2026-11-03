@@ -8,6 +8,12 @@ describe('normalizeCouponCode', () => {
     expect(normalizeCouponCode('  desc10 ')).toBe('DESC10');
     expect(normalizeCouponCode('Ui-Confirma10')).toBe('UI-CONFIRMA10');
   });
+
+  it('leaves non-ASCII characters untouched', () => {
+    expect(normalizeCouponCode('ſſſ')).toBe('ſſſ');
+    expect(normalizeCouponCode('ıd')).toBe('ıD');
+    expect(normalizeCouponCode('ß')).toBe('ß');
+  });
 });
 
 describe('couponCodeSchema', () => {
@@ -26,6 +32,9 @@ describe('couponCodeSchema', () => {
     ['inner space', 'DESC 10'],
     ['symbol', 'DESC@10'],
     ['accent', 'DESCÃO'],
+    ['long s folding to S', 'ſſſ'],
+    ['dotless i folding to I', 'DESCıO'],
+    ['sharp s expanding to SS', 'ßßß'],
     ['dot', 'DESC.10'],
   ])('rejects %s', (_label, raw) => {
     expect(() => parseOrThrow(couponCodeSchema, raw)).toThrow(ValidationError);
