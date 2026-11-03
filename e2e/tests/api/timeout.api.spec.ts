@@ -79,6 +79,37 @@ test.describe('inactivity timeout (RN-020)', () => {
     expect((await getCart(request, cart.id)).body.status).toBe('abandoned');
   });
 
+  test('a successful write restarts the inactivity counter', async ({ request }) => {
+    const { cart, product } = await cartWithItem(request, PRODUCT_NAMES.highStock, 1);
+    const firstWriteAt = Date.now();
+
+    await sleep(6_000);
+    const renewed = await addItem(request, cart.id, { productId: product.id, quantity: 1 });
+    expect(renewed.status).toBe(200);
+
+    // Past the timeout counted from the first write, but still inside it counted from the second.
+    await sleep(firstWriteAt + PAST_TIMEOUT_MS - Date.now());
+    const read = await getCart(request, cart.id);
+    expect(read.body.status).toBe('with_items');
+    expect(read.body.items[0].quantity).toBe(2);
+  });
+
+  test('a refused write does not restart the inactivity counter', async ({ request }) => {
+    const { cart, product } = await cartWithItem(request, PRODUCT_NAMES.highStock, 1);
+    const firstWriteAt = Date.now();
+
+    await sleep(6_000);
+    // Far above any stock the seed has, so it is refused whatever the other specs consumed.
+    expectError(
+      await addItem(request, cart.id, { productId: product.id, quantity: 1_000_000 }),
+      409,
+      'INSUFFICIENT_STOCK',
+    );
+
+    await sleep(firstWriteAt + PAST_TIMEOUT_MS - Date.now());
+    expect((await getCart(request, cart.id)).body.status).toBe('abandoned');
+  });
+
   test('an empty cart never times out', async ({ request }) => {
     const cart = await createCart(request);
     const product = await findProductByName(request, PRODUCT_NAMES.highStock);

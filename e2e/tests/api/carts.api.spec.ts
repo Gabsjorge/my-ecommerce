@@ -337,3 +337,29 @@ test.describe('carts API', () => {
     expect((await getCart(request, cart.id)).body.status).toBe('abandoned');
   });
 });
+
+// RN-006/RN-007: the stock check when adding is informative and nothing is reserved.
+// limitedStock is never confirmed by any spec, so its stock can be compared without races.
+test.describe('stock is not reserved by the cart (RN-007)', () => {
+  test('adding the whole stock and starting checkout leave the stock unchanged', async ({
+    request,
+  }) => {
+    const product = await findProductByName(request, PRODUCT_NAMES.limitedStock);
+    const { cart } = await cartWithItem(request, PRODUCT_NAMES.limitedStock, product.stock);
+
+    expect((await checkout(request, cart.id)).status).toBe(200);
+
+    expect((await findProductByName(request, PRODUCT_NAMES.limitedStock)).stock).toBe(
+      product.stock,
+    );
+  });
+
+  test('two carts can hold the whole stock at the same time', async ({ request }) => {
+    const product = await findProductByName(request, PRODUCT_NAMES.limitedStock);
+    const first = await cartWithItem(request, PRODUCT_NAMES.limitedStock, product.stock);
+    const second = await cartWithItem(request, PRODUCT_NAMES.limitedStock, product.stock);
+
+    expect(first.cart.items[0].quantity).toBe(product.stock);
+    expect(second.cart.items[0].quantity).toBe(product.stock);
+  });
+});
