@@ -98,6 +98,7 @@ export const seedCoupons: NewCoupon[] = [
   { code: 'DISPUTA10', type: 'percentage', value: 10, minOrderCents: 0, expiresAt: FAR_FUTURE },
   { code: 'UI-CONFIRMA10', type: 'percentage', value: 10, minOrderCents: 0, expiresAt: FAR_FUTURE },
   { code: 'UI-ZERA-FIXO', type: 'fixed', value: 500000, minOrderCents: 0, expiresAt: FAR_FUTURE },
+  { code: 'UI-DISPUTA10', type: 'percentage', value: 10, minOrderCents: 0, expiresAt: FAR_FUTURE },
 ];
 
 export interface SeedResult {

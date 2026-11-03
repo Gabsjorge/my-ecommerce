@@ -107,6 +107,7 @@ Cupons (expiram em 2099-12-31, exceto o expirado; tipo/valor/mínimo em centavos
 | `DISPUTA10` | percentual | 10 | 0 | **consumível** (dois carrinhos com o mesmo cupom) |
 | `UI-CONFIRMA10` | percentual | 10 | 0 | **consumível** (E2E de UI) |
 | `UI-ZERA-FIXO` | fixo | 500000 | 0 | **consumível** (E2E de UI) |
+| `UI-DISPUTA10` | percentual | 10 | 0 | **consumível** (E2E de UI: mesmo cupom em dois carrinhos, RN-011) |
 
 Cobre as cinco categorias exigidas: percentual, fixo, expirado, com pedido mínimo e já usado.
 

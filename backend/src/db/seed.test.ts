@@ -53,8 +53,8 @@ describe('seedProducts', () => {
 describe('seedCoupons', () => {
   const byCode = (code: string) => seedCoupons.find((c) => c.code === code);
 
-  it('has 12 coupons with unique, normalized codes (RN-014)', () => {
-    expect(seedCoupons).toHaveLength(12);
+  it('has 13 coupons with unique, normalized codes (RN-014)', () => {
+    expect(seedCoupons).toHaveLength(13);
     const codes = seedCoupons.map((c) => c.code);
     expect(new Set(codes).size).toBe(codes.length);
     for (const code of codes) expect(code).toMatch(/^[A-Z0-9_-]{3,30}$/);
